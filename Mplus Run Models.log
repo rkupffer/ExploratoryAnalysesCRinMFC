@@ -1,0 +1,14 @@
+------Begin Mplus Model Run: 28Feb2022 17:41:17------
+Run options:
+	Recursive (run models in subdirectories): FALSE
+	Show output on console: FALSE
+	Replace existing outfile: always
+------
+Currently running model: 03_TIRT_BI.inp
+Currently running model: 03_TIRT_BT.inp
+Currently running model: 03_TIRT_HO.inp
+Currently running model: 03_TIRT_IP.inp
+Currently running model: 03_TIRT_OS.inp
+Currently running model: 03_TIRT_SD.inp
+
+------End Mplus Model Run: 28Feb2022 17:47:28------

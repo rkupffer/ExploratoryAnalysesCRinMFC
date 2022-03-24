@@ -1,0 +1,235 @@
+TITLE: 03_TIRT_SD3;
+
+DATA: FILE IS 'df_sd.dat';
+
+VARIABLE: 
+Names ARE 
+ID
+S01S02
+S01S03
+S02S03
+S04S05
+S04S06
+S05S06
+S07S08
+S07S09
+S08S09
+S10S11
+S10S12
+S11S12
+S13S14
+S13S15
+S14S15
+S16S17
+S16S18
+S17S18
+S19S20
+S19S21
+S20S21
+S22S23
+S22S24
+S23S24
+S25S26
+S25S27
+S26S27;
+USEVARIABLES ARE S01S02-S26S27;
+CATEGORICAL ARE ALL;
+IDVARIABLE = ID;
+MISSING ARE ALL (-99);
+
+
+ANALYSIS: 
+ESTIMATOR = ULSMV;
+PARAMETERIZATION = theta;
+
+MODEL: 
+SMac BY 
+S01S03*-1 (L_S03_n) 
+S02S03*-1 (L_S03_n) 
+S04S05*-1 (L_S05_n) 
+S05S06*1 (L_S05) 
+S07S09*-1 (L_S09_n) 
+S08S09*-1 (L_S09_n) 
+S10S11*-1 (L_S11_n) 
+S11S12*1 (L_S11) 
+S13S14*1 (L_S13) 
+S13S15*1 (L_S13) 
+S16S17*1 (L_S16) 
+S16S18*1 (L_S16) 
+S19S20*1 (L_S19) 
+S19S21*1 (L_S19) 
+S22S24*-1 (L_S24_n) 
+S23S24*-1 (L_S24_n) 
+S25S26*-1 (L_S26_n) 
+S26S27*1 (L_S26); 
+
+SNar BY 
+S01S02*1 (L_S01) 
+S01S03*1 (L_S01) 
+S04S05*-1 (L_S04) 
+S04S06*-1 (L_S04) 
+S07S08*1 (L_S07) 
+S07S09*1 (L_S07) 
+S10S12*-1 (L_S12_n) 
+S11S12*-1 (L_S12_n) 
+S13S14*-1 (L_S14_n) 
+S14S15*1 (L_S14) 
+S16S17*1 (L_S17_n) 
+S17S18*-1 (L_S17) 
+S19S21*1 (L_S21_n) 
+S20S21*1 (L_S21_n) 
+S22S23*-1 (L_S23_n) 
+S23S24*1 (L_S23) 
+S25S27*-1 (L_S27_n) 
+S26S27*-1 (L_S27_n); 
+
+SPsy BY 
+S01S02*-1 (L_S02_n) 
+S02S03*1 (L_S02) 
+S04S06*-1 (L_S06_n) 
+S05S06*-1 (L_S06_n) 
+S07S08*-1 (L_S08_n) 
+S08S09*1 (L_S08) 
+S10S11*-1 (L_S10) 
+S10S12*-1 (L_S10) 
+S13S15*-1 (L_S15_n) 
+S14S15*-1 (L_S15_n) 
+S16S18*-1 (L_S18_n) 
+S17S18*-1 (L_S18_n) 
+S19S20*-1 (L_S20_n) 
+S20S21*1 (L_S20) 
+S22S23*1 (L_S22) 
+S22S24*1 (L_S22) 
+S25S26*-1 (L_S25) 
+S25S27*-1 (L_S25); 
+
+! means for all traits are set to 0
+[SMac@0]; [SNar@0]; [SPsy@0];
+
+! variances for all traits are set to 1
+SMac@1; SNar@1; SPsy@1;
+
+! starting values for correlations between traits are set to 0
+SMac WITH SNar*0;
+SMac WITH SPsy*0;
+SNar WITH SPsy*0;
+
+! declare uniquenesses and set their starting values
+S01S02*2 (eS01eS02); 
+S01S03*2 (eS01eS03); 
+S02S03*2 (eS02eS03); 
+S04S05*2 (eS04eS05); 
+S04S06*2 (eS04eS06); 
+S05S06*2 (eS05eS06); 
+S07S08*2 (eS07eS08); 
+S07S09*2 (eS07eS09); 
+S08S09*2 (eS08eS09); 
+S10S11*2 (eS10eS11); 
+S10S12*2 (eS10eS12); 
+S11S12*2 (eS11eS12); 
+S13S14*2 (eS13eS14); 
+S13S15*2 (eS13eS15); 
+S14S15*2 (eS14eS15); 
+S16S17*2 (eS16eS17); 
+S16S18*2 (eS16eS18); 
+S17S18*2 (eS17eS18); 
+S19S20*2 (eS19eS20); 
+S19S21*2 (eS19eS21); 
+S20S21*2 (eS20eS21); 
+S22S23*2 (eS22eS23); 
+S22S24*2 (eS22eS24); 
+S23S24*2 (eS23eS24); 
+S25S26*2 (eS25eS26); 
+S25S27*2 (eS25eS27); 
+S26S27*2 (eS26eS27); 
+
+! declare correlated uniquenesses and set their starting values
+S01S02 WITH S01S03*1 (eS01); 
+S01S02 WITH S02S03*-1 (eS02_n); 
+S01S03 WITH S02S03*1 (eS03); 
+S04S05 WITH S04S06*1 (eS04); 
+S04S05 WITH S05S06*-1 (eS05_n); 
+S04S06 WITH S05S06*1 (eS06); 
+S07S08 WITH S07S09*1 (eS07); 
+S07S08 WITH S08S09*-1 (eS08_n); 
+S07S09 WITH S08S09*1 (eS09); 
+S10S11 WITH S10S12*1 (eS10); 
+S10S11 WITH S11S12*-1 (eS11_n); 
+S10S12 WITH S11S12*1 (eS12); 
+S13S14 WITH S13S15*1 (eS13); 
+S13S14 WITH S14S15*-1 (eS14_n); 
+S13S15 WITH S14S15*1 (eS15); 
+S16S17 WITH S16S18*1 (eS16); 
+S16S17 WITH S17S18*-1 (eS17_n); 
+S16S18 WITH S17S18*1 (eS18); 
+S19S20 WITH S19S21*1 (eS19); 
+S19S20 WITH S20S21*-1 (eS20_n); 
+S19S21 WITH S20S21*1 (eS21); 
+S22S23 WITH S22S24*1 (eS22); 
+S22S23 WITH S23S24*-1 (eS23_n); 
+S22S24 WITH S23S24*1 (eS24); 
+S25S26 WITH S25S27*1 (eS25); 
+S25S26 WITH S26S27*-1 (eS26_n); 
+S25S27 WITH S26S27*1 (eS27); 
+
+
+MODEL CONSTRAINT: 
+
+! factor loadings relating to the same item are equal in absolute magnitude 
+L_S02_n = -L_S02; 
+L_S05_n = -L_S05; 
+L_S08_n = -L_S08; 
+L_S11_n = -L_S11; 
+L_S14_n = -L_S14; 
+L_S17_n = -L_S17; 
+L_S20_n = -L_S20; 
+L_S23_n = -L_S23; 
+L_S26_n = -L_S26; 
+
+! pair's uniqueness is equal to the sum of 2 utility uniquenesses
+eS01eS02 = eS01 - eS02_n; 
+eS01eS03 = eS01 + eS03; 
+eS02eS03 = -eS02_n + eS03; 
+eS04eS05 = eS04 - eS05_n; 
+eS04eS06 = eS04 + eS06; 
+eS05eS06 = -eS05_n + eS06; 
+eS07eS08 = eS07 - eS08_n; 
+eS07eS09 = eS07 + eS09; 
+eS08eS09 = -eS08_n + eS09; 
+eS10eS11 = eS10 - eS11_n; 
+eS10eS12 = eS10 + eS12; 
+eS11eS12 = -eS11_n + eS12; 
+eS13eS14 = eS13 - eS14_n; 
+eS13eS15 = eS13 + eS15; 
+eS14eS15 = -eS14_n + eS15; 
+eS16eS17 = eS16 - eS17_n; 
+eS16eS18 = eS16 + eS18; 
+eS17eS18 = -eS17_n + eS18; 
+eS19eS20 = eS19 - eS20_n; 
+eS19eS21 = eS19 + eS21; 
+eS20eS21 = -eS20_n + eS21; 
+eS22eS23 = eS22 - eS23_n; 
+eS22eS24 = eS22 + eS24; 
+eS23eS24 = -eS23_n + eS24; 
+eS25eS26 = eS25 - eS26_n; 
+eS25eS27 = eS25 + eS27; 
+eS26eS27 = -eS26_n + eS27; 
+
+! fix one uniquness per block for identification
+eS01=1; 
+eS04=1; 
+eS07=1; 
+eS10=1; 
+eS13=1; 
+eS16=1; 
+eS19=1; 
+eS22=1; 
+eS25=1; 
+
+
+OUTPUT:
+sampstat standardized;
+
+SAVEDATA:
+FILE IS 'fscores_sd.dat';
+SAVE = FSCORES;
