@@ -1,10 +1,8 @@
 ####________________________ binary coding and preparation of data for TIRT-analyses in Mplus __________________________####
-# data from OSF
-#data <- readOSF("HERE", header = TRUE, stringsAsFactors = FALSE) 
-df <- read.csv("../OSF/DataExploratoryAnalysesCRinMFC.csv")[-1]
+df <- read.csv("DataExploratoryAnalysesCRinMFC.csv")[-1]
 
 # which item belongs to which trait and how is it keyed
-all_items <- read.csv2("../OSF/2_All_Items_Coding.csv", sep = ",")
+all_items <- read.csv2("2_All_Items_Coding.csv", sep = ",")
 
 # packages
 library(CRinMFC)
