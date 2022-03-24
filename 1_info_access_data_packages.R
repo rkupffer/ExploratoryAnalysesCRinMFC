@@ -1,9 +1,5 @@
 # Access to data, material and packages
 
-#### OSF
-# https://osf.io/sfwnp/
-
-
 #### GitHub
 
 # CRinMFC
