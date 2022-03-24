@@ -1,5 +1,5 @@
 ###################################################  Main Analyses ###################################################
-df <- read.csv("../OSF/DataExploratoryAnalysesCRinMFC.csv")[-1]
+df <- read.csv("DataExploratoryAnalysesCRinMFC.csv")[-1]
 # ------------------------------------------------- dataframe with ID and CR indices  -------------------------------------------------
 df <- df[,c("ID",
             "time", "rt", "timeRTI", "rti", "rti.bt", "rti.os",

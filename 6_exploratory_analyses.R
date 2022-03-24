@@ -1,7 +1,7 @@
 ###################################################  Exploratory Analyses  ###################################################
-df <- read.csv("../OSF/DataExploratoryAnalysesCRinMFC.csv")[-1]
-load("../OSF/5_rq2_lpa_results.RData")
-all_items <- read.csv2("../OSF/2_All_Items_Coding.csv", sep = ",")
+df <- read.csv("DataExploratoryAnalysesCRinMFC.csv")[-1]
+load("5_rq2_lpa_results.RData")
+all_items <- read.csv2("2_All_Items_Coding.csv", sep = ",")
 
 library(CRinMFC)
 library(multiplex)

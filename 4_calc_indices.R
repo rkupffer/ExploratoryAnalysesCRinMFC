@@ -1,8 +1,8 @@
 ####________________________  calculation of the indices to detect careless responding in mfc questionnaires ________________________####
-df <- read.csv("../OSF/DataExploratoryAnalysesCRinMFC.csv")[-1]
+df <- read.csv("DataExploratoryAnalysesCRinMFC.csv")[-1]
 
 # which item belongs to which trait and how is it keyed
-all_items <- read.csv2("../OSF/2_All_Items_Coding.csv", sep = ",")
+all_items <- read.csv2("2_All_Items_Coding.csv", sep = ",")
 
 # packages
 library(psych)
@@ -391,7 +391,7 @@ df$cs <- ifelse(df$cs.mean < (mean(df$cs.mean, na.rm=TRUE) - 2*sd(df$cs.mean, na
 round2(prop.table(table(df$cs)),2)
 
 # ------------------------------------------------- MahalanobisD -------------------------------------------------
-load("../OSF/4_imputed.Rdata") # to not have to run the imputations every single time
+load("4_imputed.Rdata") # to not have to run the imputations every single time
 #lines are commented out in order to avoid running them again
 ####_______ bft ---> bt ####
 cor.bt <- cor2mat(bt)

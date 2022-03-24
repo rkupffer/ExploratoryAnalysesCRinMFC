@@ -4,11 +4,10 @@ rm(list=ls())
 library(CRinMFC)
 
 # additional functions which are not part of any package
-source("00_add_functions.R")
+source("0_add_functions.R")
 
 
-setwd("~/Documents/Git/CRinMFConline/z_otherScripts/RTI")
-dat <- read.csv2("data_RTIinMFC_2021-03-19_18-58.csv", header = T, sep = ";", dec = ".", na.strings = "-9" )
+dat <- read.csv2("RTI/data_RTIinMFC_2021-03-19_18-58.csv", header = T, sep = ";", dec = ".", na.strings = "-9" )
 
 dat <- dat[c(15:25),] #without old runs (tablets and phones included)
 #case18 2021-02-26 15:25:57
