@@ -1,6 +1,3 @@
-# This CITATION.cff file was generated with cffinit.
-# Visit https://bit.ly/cffinit to generate yours today!
-
 cff-version: 1.2.0
 title: >-
   Exploratory Analyses: Careless Responding in the
@@ -22,3 +19,4 @@ authors:
     email: eunike.wetzel@uni-landau.de
     orcid: 'https://orcid.org/0000-0002-4224-0366'
     given-names: Eunike
+url: "https://github.com/rkupffer/ExploratoryAnalysesCRinMFC"
