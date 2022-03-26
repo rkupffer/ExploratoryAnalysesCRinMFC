@@ -1,5 +1,7 @@
 ###################################################  Main Analyses ###################################################
-df <- read.csv("DataExploratoryAnalysesCRinMFC.csv")[-1]
+#df <- read.csv("DataExploratoryAnalysesCRinMFC.csv")[-1]
+df <- readRDS("4_indices.rds")
+
 # ------------------------------------------------- dataframe with ID and CR indices  -------------------------------------------------
 df <- df[,c("ID",
             "time", "rt", "timeRTI", "rti", "rti.bt", "rti.os",
@@ -95,7 +97,7 @@ range(indices_lpa_imp1[, "cs"])
 lpa <- estimate_profiles(indices_lpa_imp1, 1:5, 
                       models = 2,
                       package = "mplus", 
-                      ANALYSIS = "starts = 7000, 200;")
+                      ANALYSIS = "starts = 9000, 400;")
 lpa
 
 fit_table_lpa <- data.frame(get_fit(lpa)[,c("Model","Classes","BIC","Entropy","prob_min","prob_max")])
@@ -180,6 +182,10 @@ model3 <- model3[, c(2,3,1,4)]
 colnames(model3) <- c("Class1", "Class2", "Class3", "Class4")
 model3 
 
+# save LPA results ####
+save(indices_lpa, lpa,
+     mw_estim2.2, mw_estim2.3, mw_estim2.4,
+     file = "5_rq2_lpa_results.RData")
 
 
 #####______________________________________ RQ3: proportion of CR for each index  ______________________________________ ####

@@ -2,7 +2,7 @@
 df <- read.csv("DataExploratoryAnalysesCRinMFC.csv")[-1]
 
 # which item belongs to which trait and how is it keyed
-all_items <- read.csv2("2_All_Items_Coding.csv", sep = ",")
+all_items <- read.csv2("2_All_Items_Coding.csv", sep = ",")[,2:8]
 
 # packages
 library(CRinMFC)
@@ -466,6 +466,9 @@ eO01eO02 = eO01 - eO02_n; \neO01eO03 = eO01 + eO03; \neO02eO03 = -eO02_n + eO03;
 
 # save as input-file
 cat(paste(tirt_os, collapse="\n\n"), file="3_Mplus/03_TIRT_OS.inp")
+
+# ------------------------------------------------- save df with binary data -------------------------------------------------
+saveRDS(df, file = "2_df_recoded.rds")
 
 
 

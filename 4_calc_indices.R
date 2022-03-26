@@ -1,8 +1,9 @@
 ####________________________  calculation of the indices to detect careless responding in mfc questionnaires ________________________####
-df <- read.csv("DataExploratoryAnalysesCRinMFC.csv")[-1]
+#df <- read.csv("DataExploratoryAnalysesCRinMFC.csv")[-1]
+df <- readRDS("2_df_recoded.rds")
 
 # which item belongs to which trait and how is it keyed
-all_items <- read.csv2("2_All_Items_Coding.csv", sep = ",")
+all_items <- read.csv2("2_All_Items_Coding.csv", sep = ",")[,2:8]
 
 # packages
 library(psych)
@@ -801,4 +802,26 @@ df$mis.ir <- rowMeans(is.na(df.raw[, c(which(colnames(df.raw) == "VC01_01"): whi
                                        which(colnames(df.raw) == "VC02_01"): which(colnames(df.raw) == "VC02_03"))]))
 df$mis <- ifelse(df$missi > mean(df$missi)+2*sd(df$missi), 1, 0)
 
+# ------------------------------------------------- dataframe with ID and CR indices  -------------------------------------------------
+
+indi <- df[,c("ID",
+              "time", "rt", "timeRTI", "rti", "rti.bt", "rti.os",
+              "SR_Effort", "SR_E_rec", "sr_e",
+              "SR_Attention","SR_A_rec", "sr_a",
+              "SR_UseMe", "sr_u",
+              "irt1", "irt2", "ir", 
+              "cs.bt", "cs.bi", "cs.ho", "cs.ip", "cs.os", "cs.mean", "cs.mean_rec", "cs",
+              "md.bt", "md.bi", "md.ho", "md.ip", "md.os", 
+              "md.bt.cr","md.bi.cr","md.ho.cr","md.ip.cr","md.os.cr", "md.sum", "md.mean", "md",
+              "lcm.bt", "lcm.bi", "lcm.sd", "lcm.ho", "lcm.ip", "lcm.os", "lcm.df", "lcm",
+              "lca.bt", "lca.bi", "lca.sd", "lca.ho", "lca.ip", "lca.os", "lca.df", "lca",
+              "sc.bt", "sc.bi", "sc.sd", "sc.ho", "sc.ip", "sc.os", "sc.df", "sc",
+              "tv.bt", "tv.bi", "tv.sd", "tv.ho", "tv.ip", "tv.os", "tv.df", "tv", "tv.df_rec",
+              "mis.bt", "mis.bi", "mis.sd", "mis.ho", "mis.ip", "mis.os", "mis.ir", "mis", "missi",
+              "tsc")]
+dim(indi)
+head(indi, 3)
+
+#### save
+saveRDS(indi, file = "4_indices.rds")
 
