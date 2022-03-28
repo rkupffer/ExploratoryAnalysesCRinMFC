@@ -1,4 +1,4 @@
-------Begin Mplus Model Run: 25Mär2022 13:54:56------
+------Begin Mplus Model Run: 28Mär2022 09:37:15------
 Run options:
 	Recursive (run models in subdirectories): FALSE
 	Show output on console: FALSE
@@ -11,4 +11,4 @@ Currently running model: 03_TIRT_IP.inp
 Currently running model: 03_TIRT_OS.inp
 Currently running model: 03_TIRT_SD.inp
 
-------End Mplus Model Run: 25Mär2022 14:01:40------
+------End Mplus Model Run: 28Mär2022 09:44:00------

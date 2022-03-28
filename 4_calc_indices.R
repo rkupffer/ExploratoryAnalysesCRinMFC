@@ -1,5 +1,4 @@
 ####________________________  calculation of the indices to detect careless responding in mfc questionnaires ________________________####
-#df <- read.csv("DataExploratoryAnalysesCRinMFC.csv")[-1]
 df <- readRDS("2_df_recoded.rds")
 
 # which item belongs to which trait and how is it keyed

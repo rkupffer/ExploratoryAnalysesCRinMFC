@@ -1,7 +1,9 @@
 ###################################################  Exploratory Analyses  ###################################################
-df <- read.csv("DataExploratoryAnalysesCRinMFC.csv")[-1]
 load("5_rq2_lpa_results.RData")
-all_items <- read.csv2("2_All_Items_Coding.csv", sep = ",")
+all_items <- read.csv2("2_All_Items_Coding.csv", sep = ",")[,2:8]
+df <- readRDS("4_indices.rds")
+bin <- readRDS("2_df_recoded.rds")
+bin <- subset(bin, select = c(ID, b.bi.1:b.bi.60))
 
 library(CRinMFC)
 library(multiplex)
@@ -21,16 +23,16 @@ source("0_add_functions.R")
 #_________________________________ age and gender variables ______________________________ ####
 # all demographic information was removed from due to data privacy 
 
-#names(df)[names(df) == "DA02_01"] <- "age"
-#names(df)[names(df) == "DA03"] <- "gender"
-#df$gender <- car::recode(df$gender, recodes = "1=0; 2=1; 3=NA; NA=NA")
-#df_0 <- data.frame(ID = df$ID, age = df$age, gender = df$gender)
+names(df)[names(df) == "DA02_01"] <- "age"
+names(df)[names(df) == "DA03"] <- "gender"
+df$gender <- car::recode(df$gender, recodes = "1=0; 2=1; 3=NA; NA=NA")
+df_0 <- data.frame(ID = df$ID, age = df$age, gender = df$gender)
 
 
 #_________________________________ Criteria for being careless ______________________________ ####
 # A: participants who were assigned to LPA-Class 2-4 (Model 3)
 df$lpa_class <- est_mod2.4$Class
-df$lpa_class <- car::recode(df$lpa_class, recodes = "1=3; 2=2; 3=1; 4=4") # makes no difference here... but like this its in line with the order above
+df$lpa_class <- car::recode(df$lpa_class, recodes = "1=2; 2=1; 3=4; 4=3") # but like this its in line with the order above
 df$critA <- ifelse(df$lpa_class > 1, 1, 0)
 prop.table(table(df$critA)) #check
 
@@ -50,9 +52,9 @@ round2(prop.table(table(df$critA, df$critB)), 2)
 datcriteria <- df[, c("ID", "critA", "critB")]
 datvars <- df[ , c(which(colnames(df) == "ID"), 
                    which(colnames(df) == "age"), 
-                   which(colnames(df) == "gender"), 
-                   which(colnames(df) == "b.bi.1") : which(colnames(df) == "b.bi.60"))]
+                   which(colnames(df) == "gender"))]
 datTIRT_bi <- merge(datcriteria, datvars, by = "ID")
+datTIRT_bi <- merge(datTIRT_bi, bin, by = "ID")
 dim(datTIRT_bi)
 head(datTIRT_bi, 3)
 
@@ -106,9 +108,9 @@ cat(paste(tirt_bi_critB, collapse="\n\n"), file="6_exploratory/06_TIRT_BFI-critB
 
 #--------------------------------- BFI #### 
 #--------------------------------- all participants ####
-m_theta.bfi_all <- read.table("03_Mplus/fscores_bi.dat", header = FALSE, na.strings = "*")[, c(71,61,63,65,67,69)]
+m_theta.bfi_all <- read.table("3_Mplus/fscores_bi.dat", header = FALSE, na.strings = "*")[, c(71,61,63,65,67,69)]
 colnames(m_theta.bfi_all)<- c("ID", paste0(c("N","E","O","A","C"), "_bi_all"))
-m_ses.bi_all <- read.table("03_Mplus/fscores_bi.dat", header = FALSE, na.strings = "*")[,c(62,64,66,68,70)]
+m_ses.bi_all <- read.table("3_Mplus/fscores_bi.dat", header = FALSE, na.strings = "*")[,c(62,64,66,68,70)]
 colnames(m_ses.bi_all)<- c(paste0(c("N","E","O","A","C"),"_se"))
 
 df_bi <- merge(df_0, m_theta.bfi_all, by = "ID", all = TRUE)

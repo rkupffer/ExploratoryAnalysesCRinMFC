@@ -1,25 +1,5 @@
 ###################################################  Main Analyses ###################################################
-#df <- read.csv("DataExploratoryAnalysesCRinMFC.csv")[-1]
 df <- readRDS("4_indices.rds")
-
-# ------------------------------------------------- dataframe with ID and CR indices  -------------------------------------------------
-df <- df[,c("ID",
-            "time", "rt", "timeRTI", "rti", "rti.bt", "rti.os",
-            "SR_Effort", "SR_E_rec", "sr_e",
-            "SR_Attention","SR_A_rec", "sr_a",
-            "SR_UseMe", "sr_u",
-            "irt1", "irt2", "ir", 
-            "cs.bt", "cs.bi", "cs.ho", "cs.ip", "cs.os", "cs.mean", "cs.mean_rec", "cs",
-            "md.bt", "md.bi", "md.ho", "md.ip", "md.os", 
-            "md.bt.cr","md.bi.cr","md.ho.cr","md.ip.cr","md.os.cr", "md.sum", "md.mean", "md",
-            "lcm.bt", "lcm.bi", "lcm.sd", "lcm.ho", "lcm.ip", "lcm.os", "lcm.df", "lcm",
-            "lca.bt", "lca.bi", "lca.sd", "lca.ho", "lca.ip", "lca.os", "lca.df", "lca",
-            "sc.bt", "sc.bi", "sc.sd", "sc.ho", "sc.ip", "sc.os", "sc.df", "sc",
-            "tv.bt", "tv.bi", "tv.sd", "tv.ho", "tv.ip", "tv.os", "tv.df", "tv", "tv.df_rec",
-            "mis.bt", "mis.bi", "mis.sd", "mis.ho", "mis.ip", "mis.os", "mis.ir", "mis", "missi",
-            "tsc")]
-head(df)
-
 
 library(psych)
 library(CRinMFC)
@@ -141,7 +121,6 @@ mw_estim2.2 <- round2(mw_estim2.2, 2)
 
 #prepare for the paper: reorder the indices and export the table 
 model1 <- t(mw_estim2.2[, c("prop","time","rti","SR_E","SR_A","SR_UseMe","cs","md","lcm","lca","sc","tv","ir","missi")])
-model1 <- model1[,c(2,1)]
 colnames(model1) <- c("Class1", "Class2")
 model1 
 
@@ -159,7 +138,7 @@ mw_estim2.3 <- round2(mw_estim2.3, 2)
 
 #prepare for the paper: reorder the indices and export the table 
 model2 <- t(mw_estim2.3[, c("prop","time","rti","SR_E","SR_A","SR_UseMe","cs","md","lcm","lca","sc","tv","ir","missi")])
-model2 <- model2[, c(3,2,1)] #reorder: largest class should always be Class1
+model2 <- model2[, c(2,1,3)] #reorder: largest class should always be Class1
 colnames(model2) <- c("Class1", "Class2", "Class3")
 model2 
 
@@ -178,7 +157,7 @@ mw_estim2.4 <- round2(mw_estim2.4, 2)
 
 #prepare for the paper: reorder the indices and classes and export the table 
 model3 <- t(mw_estim2.4[, c("prop","time","rti","SR_E","SR_A","SR_UseMe","cs","md","lcm","lca","sc","tv","ir","missi")])
-model3 <- model3[, c(2,3,1,4)]
+model3 <- model3[, c(2,1,4,3)]
 colnames(model3) <- c("Class1", "Class2", "Class3", "Class4")
 model3 
 
