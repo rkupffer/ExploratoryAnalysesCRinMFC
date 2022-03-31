@@ -1,11 +1,11 @@
 cff-version: 1.2.0
 title: >-
-  Exploratory Analyses: Careless Responding in the
-  Multidimensional Forced-Choice Format
+  An Exploratory Investigation of the Indices to Detect Careless Responding in 
+  the Multidimensional Forced-Choice Format 
 message: >-
-  If you use this software, please cite it using the
+  If you use this data set or software, please cite it using the
   metadata from this file.
-type: software
+type: software and data
 authors:
   - family-names: Kupffer
     email: kupffer@uni-landau.de
