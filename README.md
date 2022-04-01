@@ -6,12 +6,12 @@ in the multidimensional forced-choice format. We adapted a number of indices to
 detect careless responding used in the rating scale format to the 
 multidimensional forced-choice format and additionally developed several new 
 indices that are unique to the multidimensional forced-choice format (The 
-functions to calculate the indices are also available on GitHub [CRinMFC](https://github.com/rkupffer/CRinMFConline). We examined the performance of and correlations among these indices. Furthermore,
+functions to calculate the indices are also available on GitHub [CRinMFC](https://github.com/rkupffer/CRinMFConline)). The goal of study was to investigate the performance of and correlations among these indices. Furthermore,
 we investigated the extent of careless responding in MFC questionnaires as well 
 as the proportion of the sample that responded carelessly.
 
 ## Coauthors
-[Susanne Frick](https://github.com/susanne-frick)
+[Susanne Frick](https://github.com/susanne-frick) and
 [Eunike Wetzel](https://github.com/eunike-wetzel)
 
 ## Dependencies
