@@ -15,9 +15,9 @@ as the proportion of the sample that responded carelessly.
 [Eunike Wetzel](https://github.com/eunike-wetzel)
 
 ## Dependencies
-[CRinMFC](https://github.com/rkupffer/CRinMFC)
-[TirtAutomation](https://github.com/susanne-frick/TirtAutomation)
-[MFCblockInfo](https://github.com/susanne-frick/MFCblockInfo)
+- [CRinMFC](https://github.com/rkupffer/CRinMFC)   
+- [TirtAutomation](https://github.com/susanne-frick/TirtAutomation)   
+- [MFCblockInfo](https://github.com/susanne-frick/MFCblockInfo)   
 
 ## Usage
 The scripts are numbered in the order of the analyses.
@@ -50,5 +50,6 @@ The scripts are numbered in the order of the analyses.
 ## Licenses
 Data:
 [CC-BY-4.0](https://choosealicense.com/licenses/cc-by-4.0/)
+
 Code:
 [GNU GPLv3](https://choosealicense.com/licenses/gpl-3.0/)
