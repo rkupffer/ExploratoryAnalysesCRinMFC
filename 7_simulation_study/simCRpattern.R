@@ -12,6 +12,13 @@ library(doParallel)
 
 rm(list = ls())
 
+# function: string ranks to numeric ----
+ranks2num<- function(rankOrder){
+  out <- rbind(as.numeric(substr(rankOrder, 1, 1)),
+               as.numeric(substr(rankOrder, 2, 2)),
+               as.numeric(substr(rankOrder, 3, 3)))
+}
+
 # function: sample and repeat rank orders ----
 
 sampRepRank <- function(ranks2sample,    # list with rank orders as strings
@@ -20,8 +27,8 @@ sampRepRank <- function(ranks2sample,    # list with rank orders as strings
                         no_ranks2sample, # no of ranks drawn (per participant)
                         no_rep){         # number of repetitions per rank
   
-  # strong swiping
-  if(no_ranks2sample == 1){
+  # strong repetition of rank orders - stroRepOrder  ------------------------
+  if(no_ranks2sample == no_rep){
     
     # draw ranks and store them in a list 
     rankOrders <- matrix(NA, nrow = nrow(m_out), ncol = no_ranks2sample)
@@ -34,11 +41,11 @@ sampRepRank <- function(ranks2sample,    # list with rank orders as strings
     e3 <- as.numeric(substr(rankOrders, 3, 3))
     
     # repeat rank order no_rep times
-    m_out <- rep(cbind(e1, e2, e3), b)
+    m_out <- rep(cbind(e1, e2, e3), no_rep)
   }
   
-  # moderate swiping
-  if(no_ranks2sample == b/5){
+  # moderate repetition of rank orders - modRepOrder ------------------------
+  if(no_ranks2sample == b/no_rep){
     
     # draw ranks and store them in a list 
     rankOrders <- matrix(NA, nrow = nrow(m_out), ncol = no_ranks2sample)
@@ -68,16 +75,36 @@ sampRepRank <- function(ranks2sample,    # list with rank orders as strings
     m_ro3 <- cbind(e1[ , 3], e2[ , 3], e3[ , 3])
     m_ro4 <- cbind(e1[ , 4], e2[ , 4], e3[ , 4])
     
-    m_out <- matrix(data = cbind(replicate(5, m_ro1),
-                                 replicate(5, m_ro2),
-                                 replicate(5, m_ro3),
-                                 replicate(5, m_ro4)),
+    m_out <- matrix(data = cbind(replicate(no_rep, m_ro1),
+                                 replicate(no_rep, m_ro2),
+                                 replicate(no_rep, m_ro3),
+                                 replicate(no_rep, m_ro4)),
                     ncol = ncol(m_out), nrow = nrow(m_out),
                     byrow = FALSE)  
+  }
+  
+  # random selection of rank orders - randomOrder  ------------------------
+  if(no_ranks2sample == b){
     
+    # draw ranks and store them in a list 
+    rankOrders <- matrix(NA, nrow = nrow(m_out), ncol = no_ranks2sample)
+    rankOrders <- apply(rankOrders, 
+                        MARGIN = 1, 
+                        function(x) sample(ranks2sample, 
+                                           size = b, 
+                                           replace = TRUE))
+
+    # character to numeric ranks
+    m_out_num <- matrix(data = NA, nrow = nrow(m_out), ncol = no_ranks2sample*3)
+    
+    m_out_num <- apply(rankOrders,
+                       MARGIN = 1,
+                       FUN = ranks2num)
+    
+    m_out <- t(m_out_num)
+
   }
 }
-
 
 ####------------------- simulation design -------------------------####
 
@@ -179,18 +206,17 @@ design$simSeed
 
 #test
 
-no_ranks2sample <- 1
+no_ranks2sample <- 20
 ranks2sample <- ro
-m_out <- 
-  
-  m_CRrr_resp <- matrix(data = NA, nrow = N*prop*design[d, 1], ncol = b*m)
+m_out <- matrix(data = NA, nrow = 20, ncol = b*m)
+
 m_CRss_resp <- matrix(data = NA, nrow = N*prop*design[d, 2], ncol = b*m)
 m_CRms_resp <- matrix(data = NA, nrow = N*prop*design[d, 3], ncol = b*m)
 
 
 
-
-
-
-
+matrixtest <- matrix(data = c("132", "123", "321", "111", "222", "333"),
+                     2, 3, TRUE)
+test <- apply(matrixtest, MARGIN = 1, FUN = ranks2string)
+t(test)
 ###
