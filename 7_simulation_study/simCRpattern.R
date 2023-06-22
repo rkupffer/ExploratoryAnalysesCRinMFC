@@ -1,72 +1,23 @@
 #### simulation and detection of different careless responding pattern  ####
 
 # In this script different careless and careful responding pattern 
-# will be simulated with varying proportions of careless respondents.
+# will be simulated with varying proportions of careless respondents and 
+# varying proportions of different response pattern.
 
 # packages ----
 library(MFCblockInfo)
 library(TirtAutomation)
 library(CRinMFC)
+library(doParallel)
 
 rm(list = ls())
-
-
-# sample and BFT questionnaire meta data ----
-all_items <- read.csv2("../ExploratoryAnalysesCRinMFC/2_All_Items_Coding.csv", 
-                       sep = ",")[,2:8]
-
-
-
-# number of blocks in the questionnaire
-b <- 20
-
-# number of items per block
-m <- 3
-
-# sample size
-N <- 1000
-
-# rank orders stored in a matrix
-ro <- matrix(c("123", "132", "213", "231", "312", "321"), 6, byrow = TRUE)
-
-# matrix (items x traits) with design loadings
-m_dload <- designLoadings(all_items, quest = "BT", no.traits = 5)
-
-# variance-covariance matrix (Anglim et al., 2020, p. 60)
-m_sigma <- matrix(data = c(1, -.49, -.19, -.17, -.48, 
-                           -.49, 1, .30, .08, .19, 
-                           -.19, .30, 1, .20, .14,
-                           -.17, .08, .20, 1, .32,
-                           -.48, .19, .14, .32, 1), 
-                  nrow = 5, ncol = 5, byrow = TRUE)
-
-# vector with means fixed to 0
-v_mu <- rep(0, 5)
-
-# range of factor loadings
-load <- c(-1, 1)
-
-# range of intercepts
-int <- c(.65, .95)
-
-# function: repeat selected rank order ----
-
-repeatRank <- function(rank, no_rep){
-  e1 <- as.numeric(substr(rank, 1, 1))
-  e2 <- as.numeric(substr(rank, 2, 2))
-  e3 <- as.numeric(substr(rank, 3, 3))
-  
-  out <- rep(c(e1, e2, e3), no_rep)
-  out
-}
 
 # function: sample and repeat rank orders ----
 
 sampRepRank <- function(ranks2sample,    # list with rank orders as strings
                         m_out,           # output matrix
                         b,               # no of blocks
-                        no_ranks2sample, # how many ranks will be drawn
-                                         # 1 - ss, 4 - ms, 20 - rs
+                        no_ranks2sample, # no of ranks drawn (per participant)
                         no_rep){         # number of repetitions per rank
   
   # strong swiping
@@ -127,128 +78,114 @@ sampRepRank <- function(ranks2sample,    # list with rank orders as strings
   }
 }
 
-# simulation design ----
-'design <- data.frame(random = c(rep(c(0,.25,.5,.75,1),2)),
-                     strongS = c(1,.75,.5,.25, rep(0, 6)),
-                     moderateS = c(rep(0, 5), 1,.75,.5,.25, 0)
-                     )'
 
-design <- data.frame(random = c(rep(c(0,.5,1),2)),
-                     strongS = c(1,.5, rep(0, 4)),
-                     moderateS = c(rep(0, 3), 1, .5, 0)
-)
+####------------------- simulation design -------------------------####
 
-'propOfCR <- c(.02, .04, .06, .08, .10, .12, .14, .16, .18, .20,
-              .22, .24, .26, .28, .30, .32, .34, .36, .38, .40)'
+# fixed parameter ----
 
-propOfCR <- c(.02, .07, .12, .17, .22, .27, .32, .37)
+# sample and BFT questionnaire meta data ----
+all_items <- read.csv2("../ExploratoryAnalysesCRinMFC/2_All_Items_Coding.csv", 
+                       sep = ",")[,2:8]
 
-# number of replications
-r <- 1:10 # later 1000
+# number of blocks in the questionnaire
+b <- 20
+
+# number of items per block
+m <- 3
+
+# sample size
+N <- 1000
+
+# rank orders stored in a matrix
+ro <- matrix(c("123", "132", "213", "231", "312", "321"), 6, byrow = TRUE)
+
+# matrix (items x traits) with design loadings
+m_dload <- designLoadings(all_items, quest = "BT", no.traits = 5)
+
+# variance-covariance matrix (Anglim et al., 2020, p. 60)
+m_sigma <- matrix(data = c(1, -.49, -.19, -.17, -.48, 
+                           -.49, 1, .30, .08, .19, 
+                           -.19, .30, 1, .20, .14,
+                           -.17, .08, .20, 1, .32,
+                           -.48, .19, .14, .32, 1), 
+                  nrow = 5, ncol = 5, byrow = TRUE)
+
+# vector with means fixed to 0
+v_mu <- rep(0, 5)
+
+# range of factor loadings
+load <- c(-1, 1)
+
+# range of intercepts
+int <- c(.65, .95)
+
+# varying parameter ----
+
+# test design
+p <- seq(0, 1, .25)
+factor_randomOrder <- p
+factor_strongRepOrder <- p
+factor_moderateRepOrder <- p
+factor_propOfCR <- seq(.02, .4, by = .05)
+
+# smaller number of replications for test
+r <- 1:10
+
+# smaller sample size for test
+N <- 10
+
+
+
+
+# actual design
+#factor_randomOrder <- c(rep(c(0,.25,.5,.75,1),2))
+#factor_strongRepOrder <- c(1,.75,.5,.25, rep(0, 6))
+#factor_moderateRepOrder <- c(rep(0, 5), 1,.75,.5,.25, 0)
+#factor_propOfCR <- c(.02, .04, .06, .08, .10, .12, .14, .16, .18, .20,
+#                     .22, .24, .26, .28, .30, .32, .34, .36, .38, .40)
+# no of replications
+#r <- 1:1000
+# if(N != 1000) {print("Achtung!!!!!!!!!!!!!!!!! Geplante SP-Groesse ist 1000")}
+
+
+
+# matrix with simulation conditions
+design <- expand.grid("replication" = r,
+                      "propOfCR" =  factor_propOfCR,
+                      "randomOrder" = factor_randomOrder,
+                      "stroRepOrder" = factor_strongRepOrder,
+                      "modRepOrder" = factor_moderateRepOrder)
+head(design)
+
+design$relevant <- NA
+# proportion can not be larger than 1
+# no careless responding is also not reasonable
+# either strong or moderate repetions of rank orders
+design$relevant <- ifelse(
+  rowSums(design[, c("randomOrder", "stroRepOrder", "modRepOrder")])!= 1  |
+  rowSums(design[, c("randomOrder", "stroRepOrder", "modRepOrder")]) == 0 |
+  (design[, "stroRepOrder"]>0 & design[,"modRepOrder"]>0),
+                          0, 1)
+design <- design[design$relevant == 1, ]
+design$relevant <- NULL
+
 
 # simulation seed
-simSeed <- paste0("318", 1:(length(r)*nrow(design)))
-simSeed
+design$simSeed <- paste0("318", 1:nrow(design))
+design$simSeed
 
-# start ----
-
-#TODO: save response matrices with corresponding seeds and the info what kind
-#of response pattern was modeled
-
-#TODO: check the loop. Something is off with the sequence and seed iteration.
-
-#TODO: rewrite code to functions.
+####------------------ start simulation -------------------####
 
 
-for(i in 1:length(simSeed)){
+#test
+
+no_ranks2sample <- 1
+ranks2sample <- ro
+m_out <- 
   
-  set.seed(simSeed[i])
-  replSeed <- simSeed[i]
-  
-  for(p in 1:length(propOfCR)){
-    
-    prop <- NULL
-    prop <- propOfCR[p]
-    
-    for(d in 1:nrow(design)){
-      
-      # select condition
-      con <- NULL
-      con <- design[d, ]
-      
-      
-      # simulation of careful/thoughtful responses ----
-      
-      # item parameter simulation
-      bft_items <- sim.items(m_dload, b, m, load, int)
-      
-      # draw traits of N persons
-      traits <- mvtnorm::rmvnorm(N*(1-prop), v_mu, m_sigma)
-      
-      # simulation of the responses as ranks
-      resp <- sim.responses(traits, bft_items, m_dload, b, m, 
-                            return.index = FALSE)
-      m_Care_resp <- resp$ranks
-      
-      # random responding
-      if(design[d, 1]!=0){
-        m_CRrr_resp <- matrix(data = NA, nrow = N*prop*design[d, 1], ncol = b*m)
-        
-        for(i in 1:nrow(m_CRrr_resp)){
-          for(r in seq(1, to = b*m, by = m)){
-            rank <- sample(ro, 1)
-            m_CRrr_resp[i, c(r, r+1, r+2)] <- repeatRank(rank, no_rep = 1)
-          }
-        }
-      }
-      
-      # strong swiping
-      if(design[d, 2]!=0){
-        m_CRss_resp <- matrix(data = NA, nrow = N*prop*design[d, 2], ncol = b*m)
-        
-        for(i in 1:nrow(m_CRss_resp)){
-          rank <- sample(ro, 1)
-          m_CRss_resp[i, ] <- repeatRank(rank, no_rep = b)
-        }
-        m_CRss_resp
-      }
-      
-      # moderate swiping
-      triplet_rep <- 5
-      
-      if(design[d, 3]!=0){
-        m_CRms_resp <- matrix(data = NA, nrow = N*prop*design[d, 3], ncol = b*m)
-        
-        for(i in 1:nrow(m_CRms_resp)){
-          for(r in 1:triplet_rep){
-            rank <- sample(ro, 1)
-            m_CRms_resp[i, 1:(triplet_rep*3)] <- repeatRank(rank, no_rep = triplet_rep)
-          }
-          for(r in triplet_rep+1:triplet_rep*2){
-            rank <- sample(ro, 1)
-            m_CRms_resp[i, 16:30] <- repeatRank(rank, no_rep = triplet_rep)
-          }
-          for(r in triplet_rep*2+1:triplet_rep*3){
-            rank <- sample(ro, 1)
-            m_CRms_resp[i, 31:45] <- repeatRank(rank, no_rep = triplet_rep)
-          }
-          for(r in triplet_rep*3+1:triplet_rep*4){
-            rank <- sample(ro, 1)
-            m_CRms_resp[i, 46:60] <- repeatRank(rank, no_rep = triplet_rep)
-          }
-        }
-      }
-      
-      
-      
-    }
-  }
-  
-  #save as text doc with sim seed
-  
-}
-
-
+  m_CRrr_resp <- matrix(data = NA, nrow = N*prop*design[d, 1], ncol = b*m)
+m_CRss_resp <- matrix(data = NA, nrow = N*prop*design[d, 2], ncol = b*m)
+m_CRms_resp <- matrix(data = NA, nrow = N*prop*design[d, 3], ncol = b*m)
 
 
 
