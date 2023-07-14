@@ -235,6 +235,9 @@ for(i in 1:nrow(design)){
   m_CR_mro <- NULL
   m_CR_sro <- NULL
   
+  # delete content of the previous TIRT folder
+  unlink("7_simulation_study/TIRT/*")
+  
   # simulation of careful/thoughtful responses -------------------------------
   # sample size of careful subsample
   n_care <- N*(1-con[, "propOfCR"])
@@ -327,7 +330,7 @@ for(i in 1:nrow(design)){
                               file.data = "bft.dat", 
                               title = paste0("bft", design[i, "simSeed"]), 
                               out.command = "sampstat standardized;",
-                              fscores.file = paste0("fs_", design[i, "simSeed"],".dat"),
+                              fscores.file = paste0("fs.dat"),
                               missings.as = "-99")
   # save as input-file
   cat(paste(tirt_bft, collapse="\n\n"), 
@@ -342,9 +345,32 @@ for(i in 1:nrow(design)){
   tirt$errors
   
   # -------------- Consistency Score -----------------------------------
+  # import parameters from mplus output
+  bt <- MplusAutomation::readModels("7_simulation_study/TIRT", what=c("parameters", "sampstat"))
+  bt.pars <- bt$parameters$unstandardized
+  
+  # factor scores
+  m_theta.bt <- read.table("7_simulation_study/TIRT/fs.dat", header = FALSE, na.strings = "*")[,c(71,61,63,65,67,69)]
+  colnames(m_theta.bt)<- c("ID",paste0(c("N","E","O","A","C"),"_bt"))
+  
+  # compute consistency score
+  cs <- consisScore(
+    quest.pars = bt.pars,
+    no.b = b,
+    no.traits = 5,
+    all.items = all_items,
+    quest = "BT",
+    m.theta = m_theta.bt[, 2:6],
+    d.bi = bft[, 2:61])
+  
   # -------------- Mahalanobis Distance --------------------------------
+  cor.bt <- cor2mat(bt)
+  thresh.bt <- thresh2vec(bt)
+  d_center.bt <- sweep(bft[, 2:61], 2L, thresh.bt)
+  md <- mahalanobis(d_center.bt, center = FALSE, cov = cor.bt)
+  
   # -------------- LongOrderMax ----------------------------------------
-  blocks <- matrix(seq_len(b*m), m, b)
+  blocks <- matrix(I, m, b)
   dat.b <- apply(blocks, 2, function(bn, d.r) 
     apply(d.r[,bn], 1, paste, collapse=""), m_all[, 2:61])
   
@@ -363,6 +389,8 @@ for(i in 1:nrow(design)){
   
   # -------------- Triplet Variance ------------------------------------
   tv <- tripletVariance(m_all[, 2:61])
+  
+  # --------------  table of all CR indices ----------------------------
   
   
 } ### end of sim
