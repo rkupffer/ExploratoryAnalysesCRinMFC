@@ -21,37 +21,45 @@ ranks2num<- function(rankOrder){
 
 # function: sample and repeat rank orders ----
 
-sampRepRank <- function(ranks2sample,    # list with rank orders as strings
-                        m_out,           # output matrix
-                        b,               # no of blocks
-                        no_ranks2sample, # no of ranks drawn (per participant)
+sampRepRank <- function(m_out,           # output matrix
                         no_rep){         # number of repetitions per rank
+                                         # 1 - randomOrder
+                                         # 5 - moderateRepOrder
+                                         # 20- strongRepOrder
   
-  # strong repetition of rank orders - stroRepOrder  ------------------------
-  if(no_ranks2sample == no_rep){
+  # no of ranks drawn (per participant)
+  no_ranks2sample <- b/no_rep
+  
+  # random selection of rank orders - randomOrder  ------------------------
+  if(no_rep == 1){
     
     # draw ranks and store them in a list 
     rankOrders <- matrix(NA, nrow = nrow(m_out), ncol = no_ranks2sample)
-    rankOrders <- apply(ranks2sample, MARGIN = 2, FUN = sample,
-                        size = nrow(m_out), replace = TRUE)
+    rankOrders <- apply(rankOrders, 
+                        MARGIN = 2, 
+                        function(x) sample(ro, 
+                                           size = nrow(m_out), 
+                                           replace = TRUE))
     
     # character to numeric ranks
-    e1 <- as.numeric(substr(rankOrders, 1, 1))
-    e2 <- as.numeric(substr(rankOrders, 2, 2))
-    e3 <- as.numeric(substr(rankOrders, 3, 3))
+    m_out_num <- matrix(data = NA, nrow = nrow(m_out), ncol = no_ranks2sample*3)
     
-    # repeat rank order no_rep times
-    m_out <- rep(cbind(e1, e2, e3), no_rep)
+    m_out_num <- apply(rankOrders,
+                       MARGIN = 1,
+                       FUN = ranks2num)
+    
+    m_out <- t(m_out_num)
+    
   }
   
   # moderate repetition of rank orders - modRepOrder ------------------------
-  if(no_ranks2sample == b/no_rep){
+  if(no_rep == 5){
     
     # draw ranks and store them in a list 
     rankOrders <- matrix(NA, nrow = nrow(m_out), ncol = no_ranks2sample)
     rankOrders <- apply(rankOrders, 
                         MARGIN = 1:2, 
-                        function(x) sample(ranks2sample, 
+                        function(x) sample(ro, 
                                            size = 1, 
                                            replace = TRUE))
     
@@ -83,27 +91,26 @@ sampRepRank <- function(ranks2sample,    # list with rank orders as strings
                     byrow = FALSE)  
   }
   
-  # random selection of rank orders - randomOrder  ------------------------
-  if(no_ranks2sample == b){
+  # strong repetition of rank orders - stroRepOrder  ------------------------
+  if(no_rep == 20){
     
     # draw ranks and store them in a list 
     rankOrders <- matrix(NA, nrow = nrow(m_out), ncol = no_ranks2sample)
-    rankOrders <- apply(rankOrders, 
-                        MARGIN = 1, 
-                        function(x) sample(ranks2sample, 
-                                           size = b, 
-                                           replace = TRUE))
-
+    rankOrders <- apply(ro, 
+                        MARGIN = 2, 
+                        FUN = sample,
+                        size = nrow(m_out), 
+                        replace = TRUE)
+    
     # character to numeric ranks
-    m_out_num <- matrix(data = NA, nrow = nrow(m_out), ncol = no_ranks2sample*3)
+    m_out_num <- ranks2num(rankOrders)
     
-    m_out_num <- apply(rankOrders,
-                       MARGIN = 1,
-                       FUN = ranks2num)
-    
-    m_out <- t(m_out_num)
-
+    # create output matrix and repeat the drwan rank order
+    m_out <- matrix(data = cbind(replicate(no_rep, t(m_out_num))),
+                    ncol = ncol(m_out), nrow = nrow(m_out),
+                    byrow = FALSE)  
   }
+  return(m_out)
 }
 
 ####------------------- simulation design -------------------------####
@@ -114,11 +121,20 @@ sampRepRank <- function(ranks2sample,    # list with rank orders as strings
 all_items <- read.csv2("../ExploratoryAnalysesCRinMFC/2_All_Items_Coding.csv", 
                        sep = ",")[,2:8]
 
+# matrix (items x traits) with design loadings
+m_dload <- designLoadings(all_items, quest = "BT", no.traits = 5)
+
 # number of blocks in the questionnaire
 b <- 20
 
 # number of items per block
 m <- 3
+
+# total number of items
+I <- b*m
+
+# design matrix A: rows - items, cols - pairwise comparisons 
+A <- TirtAutomation::designMatrix(no.b = b)
 
 # sample size
 N <- 1000
@@ -126,25 +142,22 @@ N <- 1000
 # rank orders stored in a matrix
 ro <- matrix(c("123", "132", "213", "231", "312", "321"), 6, byrow = TRUE)
 
-# matrix (items x traits) with design loadings
-m_dload <- designLoadings(all_items, quest = "BT", no.traits = 5)
-
 # variance-covariance matrix (Anglim et al., 2020, p. 60)
-m_sigma <- matrix(data = c(1, -.49, -.19, -.17, -.48, 
-                           -.49, 1, .30, .08, .19, 
-                           -.19, .30, 1, .20, .14,
-                           -.17, .08, .20, 1, .32,
-                           -.48, .19, .14, .32, 1), 
-                  nrow = 5, ncol = 5, byrow = TRUE)
+m_phi <- matrix(data = c(1, -.49, -.19, -.17, -.48, 
+                         -.49, 1, .30, .08, .19, 
+                         -.19, .30, 1, .20, .14,
+                         -.17, .08, .20, 1, .32,
+                         -.48, .19, .14, .32, 1), 
+                nrow = 5, ncol = 5, byrow = TRUE)
 
 # vector with means fixed to 0
 v_mu <- rep(0, 5)
 
 # range of factor loadings
-load <- c(-1, 1)
+load <- c(.65, .8)
 
 # range of intercepts
-int <- c(.65, .95)
+int <- c(-1, .1)
 
 # varying parameter ----
 
@@ -159,7 +172,7 @@ factor_propOfCR <- seq(.02, .4, by = .05)
 r <- 1:10
 
 # smaller sample size for test
-N <- 10
+N <- 1000
 
 
 
@@ -199,24 +212,185 @@ design$relevant <- NULL
 
 # simulation seed
 design$simSeed <- paste0("318", 1:nrow(design))
-design$simSeed
+
+i <- 100
 
 ####------------------ start simulation -------------------####
 
+# cl <- makeCluster(10)
+# registerDoParallel(cl)
 
-#test
+for(i in 1:nrow(design)){
+  
+  #set simulation seed
+  set.seed(design[i, "simSeed"])
+  
+  # select condition
+  con <- NULL
+  con <- design[i, ]
+  
+  # reset matrices 
+  m_Care_resp <- NULL
+  m_CR_ro <- NULL
+  m_CR_mro <- NULL
+  m_CR_sro <- NULL
+  
+  # simulation of careful/thoughtful responses -------------------------------
+  # sample size of careful subsample
+  n_care <- N*(1-con[, "propOfCR"])
+  
+  # simulate item parameter ----
+  # loadings
+  lam <- matrix(0, I, ncol(m_phi))
+  lam[m_dload != 0] <- runif(I, min(loads), max(loads))
+  
+  # add the sign based on the design loading matrix
+  lam <- lam * m_dload
+  
+  # set item variance to 1
+  psi <- diag(1 - rowSums(lam^2))
+  
+  # model-implied variance-covariance matrix
+  sigma_item <- lam %*% m_phi %*% t(lam) + psi
+  
+  # simulate pair parameter ----
+  sigma_pair <- A %*% sigma_item %*% t(A)
+  
+  # pair utilities for each careful participant
+  util_pair <- mvtnorm::rmvnorm(n_care, sigma = sigma_pair)
+  
+  # pair thresholds
+  tau_pair <- runif(I, -1, 1)
+  
+  # ranking responses (according to Brown & Maydeu-Olivares, 2011, eq. 2)
+  dat_ranks <- matrix(data = NA,
+                      nrow = n_care,
+                      ncol = I)
+  for(n in 1:n_care){
+    for(i in 1:I){
+      dat_ranks[n, i] <- ifelse(util_pair[n,i] > tau_pair[i], 1, 0)
+    }
+  }
 
-no_ranks2sample <- 20
-ranks2sample <- ro
-m_out <- matrix(data = NA, nrow = 20, ncol = b*m)
+  m_Care_resp <- dat_ranks
+  
+  # simulation of different careless responding pattern ----------------------
+  
+  if(con[, "randomOrder"] != 0){
+    
+    # size of sub-sample
+    n_randomOrder <- N*(con[, "propOfCR"])*(con[, "randomOrder"])
+    
+    # matrix for responses
+    m_CR_ro <- matrix(NA, nrow = n_randomOrder, ncol = b*m)
+    
+    # sample rank orders
+    m_CR_ro <- sampRepRank(m_CR_ro, no_rep = 1)
+  }
+  
+  if(con[, "modRepOrder"] != 0){
+    
+    # size of sub-sample
+    n_modRepOrder <- N*(con[, "propOfCR"])*(con[, "modRepOrder"])
+    
+    # matrix for responses
+    m_CR_mro <- matrix(NA, nrow = n_modRepOrder, ncol = b*m)
+    
+    # sample rank orders
+    m_CR_mro <- sampRepRank(m_CR_mro, no_rep = 5)
+  }
+  
+  if(con[, "stroRepOrder"] != 0){
+    
+    # size of sub-sample
+    n_stroRepOrder <- N*(con[, "propOfCR"])*(con[, "stroRepOrder"])
+    
+    # matrix for responses
+    m_CR_sro <- matrix(NA, nrow = n_stroRepOrder, ncol = b*m)
+    
+    # sample rank orders
+    m_CR_sro <- sampRepRank(m_CR_sro, no_rep = 20)
+  }
+  
+  # combine all response pattern in this condition to one matrix -------------
+  m_CR_resp <- NULL
+  
+  if(!is.null(m_CR_ro) && !is.null(m_CR_mro)){
+    m_CR_resp <- rbind(m_CR_ro, m_CR_mro)
+  } else if(!is.null(m_CR_ro) && !is.null(m_CR_sro)){
+    m_CR_resp <- rbind(m_CR_ro, m_CR_sro)
+  } else if(!is.null(m_CR_ro) && is.null(m_CR_mro) && is.null(m_CR_sro)){
+    m_CR_resp <- m_CR_ro
+  } else if(is.null(m_CR_ro) && !is.null(m_CR_mro)){
+    m_CR_resp <- m_CR_mro
+  } else{
+    m_CR_resp <- m_CR_sro
+  }
+  m_all <- NULL
+  m_all <- rbind(m_Care_resp, m_CR_resp)
+  
+  # apply MFC careless responding indices ------------------------------------
+  ID <- 1:nrow(m_all)
+  
+  # recode rank order to binary outcomes
+  bft <- reTri(as.data.frame(m_all), "b")
+  bft <- cbind(ID, bft)
+  
+  # save binary outcomes
+  multiplex::write.dat(bft, "7_simulation_study/TIRT")
+  
+  # rename traits an variables in design load matrix
+  colnames(m_dload) <- c("TNeu", "TExt", "TOpe", "TAgr", "TCon")
+  rownames(m_dload) <- ifelse((1:nrow(m_dload))<10,paste0("T","0",1:nrow(m_dload)), paste0("T",1:nrow(m_dload)))
+  
+  tirt_bft <- tirtMplusSyntax(design.load = m_dload, 
+                              names.pairs = NULL,
+                              item.short = "T",
+                              id.var = "ID",
+                              file.data = "bft.dat", 
+                              title = paste0("bft", design[i, "simSeed"]), 
+                              out.command = "sampstat standardized;",
+                              fscores.file = paste0("fs_", design[i, "simSeed"],".dat"),
+                              missings.as = "-99")
+  # save as input-file
+  cat(paste(tirt_bft, collapse="\n\n"), 
+      file=paste0("7_simulation_study/TIRT/tirt-bft.inp"))
+  
+  # run TIRT
+  MplusAutomation::runModels(target = "7_simulation_study/TIRT")
+  
+  # read TIRT results an check for warnings
+  tirt <- MplusAutomation::readModels(target = "7_simulation_study/TIRT")
+  tirt$warnings
+  tirt$errors
+  
+  # -------------- Consistency Score -----------------------------------
+  # -------------- Mahalanobis Distance --------------------------------
+  # -------------- LongOrderMax ----------------------------------------
+  blocks <- matrix(seq_len(b*m), m, b)
+  dat.b <- apply(blocks, 2, function(bn, d.r) 
+    apply(d.r[,bn], 1, paste, collapse=""), m_all[, 2:61])
+  
+  # calculate longOrder for each participant
+  m_lo <- longOrder(IDs = m_all[, "ID"],
+                    d.b.o = dat.b,
+                    no.b = b)
+  
+  lom <- longOrderMax(m_lo)
+  
+  # -------------- LongOrderAvg ----------------------------------------
+  loa <- longOrderAvg(m_lo)
+  
+  # -------------- SameOrder -------------------------------------------
+  so <- sameOrder(m_all[, 2:61], no.b = b)
+  
+  # -------------- Triplet Variance ------------------------------------
+  tv <- tripletVariance(m_all[, 2:61])
+  
+  
+} ### end of sim
 
-m_CRss_resp <- matrix(data = NA, nrow = N*prop*design[d, 2], ncol = b*m)
-m_CRms_resp <- matrix(data = NA, nrow = N*prop*design[d, 3], ncol = b*m)
 
 
 
-matrixtest <- matrix(data = c("132", "123", "321", "111", "222", "333"),
-                     2, 3, TRUE)
-test <- apply(matrixtest, MARGIN = 1, FUN = ranks2string)
-t(test)
 ###
