@@ -213,7 +213,7 @@ design$relevant <- NULL
 # simulation seed
 design$simSeed <- paste0("318", 1:nrow(design))
 
-i <- 100
+i <- 101
 
 ####------------------ start simulation -------------------####
 
@@ -240,39 +240,16 @@ for(i in 1:nrow(design)){
   n_care <- N*(1-con[, "propOfCR"])
   
   # simulate item parameter ----
-  # loadings
-  lam <- matrix(0, I, ncol(m_phi))
-  lam[m_dload != 0] <- runif(I, min(loads), max(loads))
+  bft_items <- sim.items(m_dload, b, m, load, int)
   
-  # add the sign based on the design loading matrix
-  lam <- lam * m_dload
+  # draw traits of n_care participants
+  traits <- mvtnorm::rmvnorm(n_care, v_mu, m_phi, method = "chol")
   
-  # set item variance to 1
-  psi <- diag(1 - rowSums(lam^2))
+  # simulation of the responses as ranks
+  resp <- sim.responses(traits, bft_items, m_dload, b, m, return.index = FALSE)
   
-  # model-implied variance-covariance matrix
-  sigma_item <- lam %*% m_phi %*% t(lam) + psi
-  
-  # simulate pair parameter ----
-  sigma_pair <- A %*% sigma_item %*% t(A)
-  
-  # pair utilities for each careful participant
-  util_pair <- mvtnorm::rmvnorm(n_care, sigma = sigma_pair)
-  
-  # pair thresholds
-  tau_pair <- runif(I, -1, 1)
-  
-  # ranking responses (according to Brown & Maydeu-Olivares, 2011, eq. 2)
-  dat_ranks <- matrix(data = NA,
-                      nrow = n_care,
-                      ncol = I)
-  for(n in 1:n_care){
-    for(i in 1:I){
-      dat_ranks[n, i] <- ifelse(util_pair[n,i] > tau_pair[i], 1, 0)
-    }
-  }
-
-  m_Care_resp <- dat_ranks
+  # save as matrix
+  m_Care_resp <- resp$ranks
   
   # simulation of different careless responding pattern ----------------------
   
