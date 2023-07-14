@@ -344,7 +344,6 @@ for(i in 1:nrow(design)){
   tirt$warnings
   tirt$errors
   
-  # -------------- Consistency Score -----------------------------------
   # import parameters from mplus output
   bt <- MplusAutomation::readModels("7_simulation_study/TIRT", what=c("parameters", "sampstat"))
   bt.pars <- bt$parameters$unstandardized
@@ -353,8 +352,13 @@ for(i in 1:nrow(design)){
   m_theta.bt <- read.table("7_simulation_study/TIRT/fs.dat", header = FALSE, na.strings = "*")[,c(71,61,63,65,67,69)]
   colnames(m_theta.bt)<- c("ID",paste0(c("N","E","O","A","C"),"_bt"))
   
-  # compute consistency score
-  cs <- consisScore(
+  # data frame of all CR indices ----
+  dcri <- data.frame(ID = bft[,1], 
+                     #was careless responding simulated?
+                     CR = c(rep(0, n_care), rep(1, nrow(m_CR_resp))))
+  
+  # Consistency Score ----
+  dcri$cs <- consisScore(
     quest.pars = bt.pars,
     no.b = b,
     no.traits = 5,
@@ -363,37 +367,146 @@ for(i in 1:nrow(design)){
     m.theta = m_theta.bt[, 2:6],
     d.bi = bft[, 2:61])
   
-  # -------------- Mahalanobis Distance --------------------------------
+  # Mahalanobis Distance ----
   cor.bt <- cor2mat(bt)
   thresh.bt <- thresh2vec(bt)
   d_center.bt <- sweep(bft[, 2:61], 2L, thresh.bt)
-  md <- mahalanobis(d_center.bt, center = FALSE, cov = cor.bt)
-  
-  # -------------- LongOrderMax ----------------------------------------
-  blocks <- matrix(I, m, b)
+  dcri$md <- mahalanobis(d_center.bt, center = FALSE, cov = cor.bt)
+ 
+  # LongOrderMax ----
+  blocks <- matrix(seq(1:I), m, b)
   dat.b <- apply(blocks, 2, function(bn, d.r) 
-    apply(d.r[,bn], 1, paste, collapse=""), m_all[, 2:61])
+    apply(d.r[,bn], 1, paste, collapse=""), m_all)
   
   # calculate longOrder for each participant
-  m_lo <- longOrder(IDs = m_all[, "ID"],
+  m_lo <- longOrder(IDs = bft[, "ID"],
                     d.b.o = dat.b,
                     no.b = b)
   
-  lom <- longOrderMax(m_lo)
+  dcri$lom <- longOrderMax(m_lo)
+ 
+  # LongOrderAvg ----
+  dcri$loa <- longOrderAvg(m_lo)
+ 
+  # SameOrder ----
+  dcri$so <- sameOrder(dat.b, b)
+
+  # Triplet Variance ----
+  dcri$tv <- tripletVariance(dat.b)
   
-  # -------------- LongOrderAvg ----------------------------------------
-  loa <- longOrderAvg(m_lo)
+  # apply cut-off values
+  dcri$cs.cr <- ifelse(dcri$cs < .64, 1, 0)
+  dcri$md.cr <- ifelse(abs(dcri$md) > qchisq(p = 1-0.05, df = 60), 1, 0)
+  dcri$lom.cr <- ifelse(dcri$lom > 7, 1, 0)
+  dcri$loa.cr <- ifelse(dcri$loa > 2, 1, 0)
+  dcri$so.cr <- ifelse(dcri$so > .4, 1, 0)
+  dcri$tv.cr <- ifelse(dcri$tv < .7, 1, 0)
   
-  # -------------- SameOrder -------------------------------------------
-  so <- sameOrder(m_all[, 2:61], no.b = b)
+  # compute performance measures according to Lalkhen & McCluskey (2008) ----
+  # se - sensitivity
+  # sp - specificity
+  # ppv - positive predictive value
+  # npv - negative predictive value
   
-  # -------------- Triplet Variance ------------------------------------
-  tv <- tripletVariance(m_all[, 2:61])
+  # prefix (e.g., "cs.") is added to avoid errors in computation in case an index
+  # could not be computed
+  cs.tp <- nrow(dcri[dcri$CR==1 & dcri$cs.cr==1, ])
+  cs.tn <- nrow(dcri[dcri$CR==0 & dcri$cs.cr==0, ])
+  cs.fp <- nrow(dcri[dcri$CR==0 & dcri$cs.cr==1, ])
+  cs.fn <- nrow(dcri[dcri$CR==1 & dcri$cs.cr==0, ])
+  cs.se <- cs.tp/(cs.tp+cs.fn)
+  cs.sp <- cs.tn/(cs.tn+cs.fp)
+  cs.ppv <- cs.tp/(cs.tp+cs.fp)
+  cs.npv <- cs.tn/(cs.tn+cs.fn)
   
-  # --------------  table of all CR indices ----------------------------
+  md.tp <- nrow(dcri[dcri$CR==1 & dcri$md.cr==1, ])
+  md.tn <- nrow(dcri[dcri$CR==0 & dcri$md.cr==0, ])
+  md.fp <- nrow(dcri[dcri$CR==0 & dcri$md.cr==1, ])
+  md.fn <- nrow(dcri[dcri$CR==1 & dcri$md.cr==0, ])
+  md.se <- md.tp/(md.tp+md.fn)
+  md.sp <- md.tn/(md.tn+md.fp)
+  md.ppv <- md.tp/(md.tp+md.fp)
+  md.npv <- md.tn/(md.tn+md.fn)
   
+  lom.tp <- nrow(dcri[dcri$CR==1 & dcri$lom.cr==1, ])
+  lom.tn <- nrow(dcri[dcri$CR==0 & dcri$lom.cr==0, ])
+  lom.fp <- nrow(dcri[dcri$CR==0 & dcri$lom.cr==1, ])
+  lom.fn <- nrow(dcri[dcri$CR==1 & dcri$lom.cr==0, ])
+  lom.se <- lom.tp/(lom.tp+lom.fn)
+  lom.sp <- lom.tn/(lom.tn+lom.fp)
+  lom.ppv <- lom.tp/(lom.tp+lom.fp)
+  lom.npv <- lom.tn/(lom.tn+lom.fn)
   
-} ### end of sim
+  loa.tp <- nrow(dcri[dcri$CR==1 & dcri$loa.cr==1, ])
+  loa.tn <- nrow(dcri[dcri$CR==0 & dcri$loa.cr==0, ])
+  loa.fp <- nrow(dcri[dcri$CR==0 & dcri$loa.cr==1, ])
+  loa.fn <- nrow(dcri[dcri$CR==1 & dcri$loa.cr==0, ])
+  loa.se <- loa.tp/(loa.tp+loa.fn)
+  loa.sp <- loa.tn/(loa.tn+loa.fp)
+  loa.ppv <- loa.tp/(loa.tp+loa.fp)
+  loa.npv <- loa.tn/(loa.tn+loa.fn)
+  
+  so.tp <- nrow(dcri[dcri$CR==1 & dcri$so.cr==1, ])
+  so.tn <- nrow(dcri[dcri$CR==0 & dcri$so.cr==0, ])
+  so.fp <- nrow(dcri[dcri$CR==0 & dcri$so.cr==1, ])
+  so.fn <- nrow(dcri[dcri$CR==1 & dcri$so.cr==0, ])
+  so.se <- so.tp/(so.tp+so.fn)
+  so.sp <- so.tn/(so.tn+so.fp)
+  so.ppv <- so.tp/(so.tp+so.fp)
+  so.npv <- so.tn/(so.tn+so.fn)
+  
+  tv.tp <- nrow(dcri[dcri$CR==1 & dcri$tv.cr==1, ])
+  tv.tn <- nrow(dcri[dcri$CR==0 & dcri$tv.cr==0, ])
+  tv.fp <- nrow(dcri[dcri$CR==0 & dcri$tv.cr==1, ])
+  tv.fn <- nrow(dcri[dcri$CR==1 & dcri$tv.cr==0, ])
+  tv.se <- tv.tp/(tv.tp+tv.fn)
+  tv.sp <- tv.tn/(tv.tn+tv.fp)
+  tv.ppv <- tv.tp/(tv.tp+tv.fp)
+  tv.npv <- tv.tn/(tv.tn+tv.fn)
+  
+  rep_result <- data.frame(seed = design[i, "simSeed"],
+                           rep = design[i, "replication"],
+                           cs_mean = mean(dcri$cs),
+                           md_mean = mean(dcri$md),
+                           lom_mean = mean(dcri$lom),
+                           loa_mean = mean(dcri$loa),
+                           so_mean = mean(dcri$so),
+                           tv_mean = mean(dcri$tv),
+                           cs_sd = sd(dcri$cs),
+                           md_sd = sd(dcri$md),
+                           lom_sd = sd(dcri$lom),
+                           loa_sd = sd(dcri$loa),
+                           so_sd = sd(dcri$so),
+                           tv_sd = sd(dcri$tv),
+                           cs_se = cs.se,
+                           cs_sp = cs.sp,
+                           cs_ppv = cs.ppv,
+                           cs_npv = cs.npv,
+                           md_se = md.se,
+                           md_sp = md.sp,
+                           md_ppv = md.ppv,
+                           md_npv = md.npv,
+                           lom_se = lom.se,
+                           lom_sp = lom.sp,
+                           lom_ppv = lom.ppv,
+                           lom_npv = lom.npv,
+                           loa_se = loa.se,
+                           loa_sp = loa.sp,
+                           loa_ppv = loa.ppv,
+                           loa_npv = loa.npv,
+                           so_se = so.se,
+                           so_sp = so.sp,
+                           so_ppv = so.ppv,
+                           so_npv = so.npv,
+                           tv_se = tv.se,
+                           tv_sp = tv.sp,
+                           tv_ppv = tv.ppv,
+                           tv_npv = tv.npv)
+  saveRDS(rep_result, file = paste0("7_simulation_study/replications/", 
+                                    "repRes", design[i, "simSeed"], ".RDS"))
+  
+  rep_result <- NULL
+}
 
 
 
