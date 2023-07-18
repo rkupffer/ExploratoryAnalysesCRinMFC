@@ -248,7 +248,7 @@ res <- foreach(c = 1:nrow(design),
                  set.seed(design[c, "simSeed"])
                  seed <- design[c, "simSeed"]
                  
-                 # simulation of careful/thoughtful responses -------------------------------
+                 # simulation of careful/thoughtful responses ----
                  # sample size of careful subsample
                  n_care <- round(N*(1-con[, "propOfCR"]))
                  
@@ -259,17 +259,22 @@ res <- foreach(c = 1:nrow(design),
                    },
                    error = function(e){
                      print(e)
-                     FALSE
-                   },
-                   warning = function(w) {
-                     print(w)
-                     FALSE
-                   } 
+                     rep_result <- data.frame(seed = design[c, "simSeed"],
+                                              rep = design[c, "replication"],
+                                              rep(NA, 36),
+                                              error = 1)
+                     return(rep_result)
+                   }
                  )
                  
-                 if(is.logical(traits)){
-                   return(NA)
+                 if(rep_result$error == 1){
+                   saveRDS(rep_result, file = 
+                             paste0("replications/", 
+                                    "repRes", 
+                                    design[c, "simSeed"], ".RDS"))
                  }
+                 
+                 # if no error occurs, create a folder for Mplus inp, out & data
                  dir.create(sprintf("TIRT/r-%i", c))
                  
                  # simulate item parameter ----
@@ -375,34 +380,33 @@ res <- foreach(c = 1:nrow(design),
                    return(NA)
                  }
                  
+                 
                  # import parameters from mplus output
                  bt <- MplusAutomation::readModels(sprintf("TIRT/r-%i", c), what=c("parameters", "sampstat"))
                  bt.pars <- bt$parameters$unstandardized
                  
                  # factor scores
-                 #m_theta.bt <- try(read.table(sprintf("TIRT/r-%i/fs.dat", c), header = FALSE, 
-                 #                             na.strings = "*")[,c(71,61,63,65,67,69)], 
-                 #                  silent = TRUE)
-                 
-                 m_theta.bt <- tryCatch(
+                  m_theta.bt <- tryCatch(
                    expr = {
                      read.table(sprintf("TIRT/r-%i/fs.dat", c), header = FALSE, 
                                 na.strings = "*")[,c(71,61,63,65,67,69)]
                    },
                    error = function(e){
                      print(e)
-                     FALSE
-                   },
-                   warning = function(w) {
-                     print(w)
-                     FALSE
-                   } 
-                 )
-                 
-                 # aboard replication if factor scores could not be computed
-                 if(is.logical(m_theta.bt)){
-                   return(NA)
-                 }
+                     rep_result <- data.frame(seed = design[c, "simSeed"],
+                                              rep = design[c, "replication"],
+                                              rep(NA, 36),
+                                              error = 2)
+                     return(rep_result)
+                   }
+                  )
+                  
+                  if(rep_result$error == 2){
+                    saveRDS(rep_result, file = 
+                              paste0("replications/", 
+                                     "repRes", 
+                                     design[c, "simSeed"], ".RDS"))
+                  }
                  
                  colnames(m_theta.bt)<- c("ID",paste0(c("N","E","O","A","C"),"_bt"))
                  
