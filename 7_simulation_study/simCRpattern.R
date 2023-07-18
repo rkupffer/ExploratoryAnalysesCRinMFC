@@ -5,9 +5,17 @@
 # varying proportions of different response pattern.
 
 # packages ----
+install.packages("numDeriv")
+install.packages("plot3D")
 library(MFCblockInfo)
+#install.packages("MFCblockInfo_0.1.0.tar.gz", 
+#                source = TRUE, repos=NULL, dependecies = TRUE)
 library(TirtAutomation)
+#install.packages("TirtAutomation_0.0.0.9000.tar.gz", 
+#                 source = TRUE, repos=NULL, dependecies = FALSE)
 library(CRinMFC)
+#install.packages("CRinMFC_0.1.0.tar.gz", 
+#                 source = TRUE, repos=NULL, dependecies = TRUE)
 library(doParallel)
 
 rm(list = ls())
@@ -23,9 +31,9 @@ ranks2num<- function(rankOrder){
 
 sampRepRank <- function(m_out,           # output matrix
                         no_rep){         # number of repetitions per rank
-                                         # 1 - randomOrder
-                                         # 5 - moderateRepOrder
-                                         # 20- strongRepOrder
+  # 1 - randomOrder
+  # 5 - moderateRepOrder
+  # 20- strongRepOrder
   
   # no of ranks drawn (per participant)
   no_ranks2sample <- b/no_rep
@@ -118,7 +126,7 @@ sampRepRank <- function(m_out,           # output matrix
 # fixed parameter ----
 
 # sample and BFT questionnaire meta data ----
-all_items <- read.csv2("../ExploratoryAnalysesCRinMFC/2_All_Items_Coding.csv", 
+all_items <- read.csv2("2_All_Items_Coding.csv", 
                        sep = ",")[,2:8]
 
 # matrix (items x traits) with design loadings
@@ -169,10 +177,10 @@ factor_moderateRepOrder <- p
 factor_propOfCR <- seq(.02, .4, by = .05)
 
 # smaller number of replications for test
-r <- 1:10
+r <- 1:100
 
 # smaller sample size for test
-N <- 500
+#N <- 500
 
 
 
@@ -203,9 +211,9 @@ design$relevant <- NA
 # either strong or moderate repetions of rank orders
 design$relevant <- ifelse(
   rowSums(design[, c("randomOrder", "stroRepOrder", "modRepOrder")])!= 1  |
-  rowSums(design[, c("randomOrder", "stroRepOrder", "modRepOrder")]) == 0 |
-  (design[, "stroRepOrder"]>0 & design[,"modRepOrder"]>0),
-                          0, 1)
+    rowSums(design[, c("randomOrder", "stroRepOrder", "modRepOrder")]) == 0 |
+    (design[, "stroRepOrder"]>0 & design[,"modRepOrder"]>0),
+  0, 1)
 design <- design[design$relevant == 1, ]
 design$relevant <- NULL
 
@@ -215,320 +223,358 @@ design$simSeed <- paste0("318", 1:nrow(design))
 
 ####------------------ start simulation -------------------####
 
-cl <- makeCluster(2)
-registerDoParallel(cl)
+cl <- parallel::makeCluster(10)
+doParallel::registerDoParallel(cl)
+
+unlink("TIRT/*", recursive=TRUE)
+unlink("replications/*", recursive=TRUE)
 
 res <- foreach(c = 1:nrow(design), 
                .inorder = FALSE,
                .packages = c("CRinMFC", "TirtAutomation", "MFCblockInfo"))%dopar%{
-  
-  # select condition
-  con <- NULL
-  con <- design[c, ]
-  
-  # reset matrices 
-  m_Care_resp <- NULL
-  m_CR_ro <- NULL
-  m_CR_mro <- NULL
-  m_CR_sro <- NULL
-  traits <- NULL
-  
-  # delete content of the previous TIRT folder
-  unlink("7_simulation_study/TIRT/*")
-  
-  #set simulation seed
-  set.seed(design[c, "simSeed"])
-  seed <- design[c, "simSeed"]
-  
-  # simulation of careful/thoughtful responses -------------------------------
-  # sample size of careful subsample
-  n_care <- round(N*(1-con[, "propOfCR"]))
-  
-  # draw traits of n_care participants ----
-  traits <- try(mvtnorm::rmvnorm(n_care, v_mu, m_phi, method = "chol"), 
-                silent = TRUE)
-  
-  if(grepl("Error in matrix", traits)){
-    #seed <- paste0("9",seed)
-    next
-  }
-  
-  # simulate item parameter ----
-  bft_items <- sim.items(m_dload, b, m, load, int)
-  
-  # simulation of the responses as ranks
-  resp <- sim.responses(traits, bft_items, m_dload, b, m, return.index = FALSE)
-  
-  # save as matrix
-  m_Care_resp <- resp$ranks
-  
-  
-  # simulation of different careless responding pattern ----------------------
-  
-  if(con[, "randomOrder"] != 0){
-    
-    # size of sub-sample
-    n_randomOrder <- N*(con[, "propOfCR"])*(con[, "randomOrder"])
-    
-    # matrix for responses
-    m_CR_ro <- matrix(NA, nrow = n_randomOrder, ncol = b*m)
-    
-    # sample rank orders
-    m_CR_ro <- sampRepRank(m_CR_ro, no_rep = 1)
-  }
-  
-  if(con[, "modRepOrder"] != 0){
-    
-    # size of sub-sample
-    n_modRepOrder <- N*(con[, "propOfCR"])*(con[, "modRepOrder"])
-    
-    # matrix for responses
-    m_CR_mro <- matrix(NA, nrow = n_modRepOrder, ncol = b*m)
-    
-    # sample rank orders
-    m_CR_mro <- sampRepRank(m_CR_mro, no_rep = 5)
-  }
-  
-  if(con[, "stroRepOrder"] != 0){
-    
-    # size of sub-sample
-    n_stroRepOrder <- N*(con[, "propOfCR"])*(con[, "stroRepOrder"])
-    
-    # matrix for responses
-    m_CR_sro <- matrix(NA, nrow = n_stroRepOrder, ncol = b*m)
-    
-    # sample rank orders
-    m_CR_sro <- sampRepRank(m_CR_sro, no_rep = 20)
-  }
-  
-  # combine all response pattern in this condition to one matrix -------------
-  m_CR_resp <- NULL
-  
-  if(!is.null(m_CR_ro) && !is.null(m_CR_mro)){
-    m_CR_resp <- rbind(m_CR_ro, m_CR_mro)
-  } else if(!is.null(m_CR_ro) && !is.null(m_CR_sro)){
-    m_CR_resp <- rbind(m_CR_ro, m_CR_sro)
-  } else if(!is.null(m_CR_ro) && is.null(m_CR_mro) && is.null(m_CR_sro)){
-    m_CR_resp <- m_CR_ro
-  } else if(is.null(m_CR_ro) && !is.null(m_CR_mro)){
-    m_CR_resp <- m_CR_mro
-  } else{
-    m_CR_resp <- m_CR_sro
-  }
-  m_all <- NULL
-  m_all <- rbind(m_Care_resp, m_CR_resp)
-  
-  # apply MFC careless responding indices ------------------------------------
-  ID <- 1:nrow(m_all)
-  
-  # recode rank order to binary outcomes
-  bft <- reTri(as.data.frame(m_all), "b")
-  bft <- cbind(ID, bft)
-  
-  # save binary outcomes
-  multiplex::write.dat(bft, "7_simulation_study/TIRT")
-  
-  # rename traits an variables in design load matrix
-  colnames(m_dload) <- c("TNeu", "TExt", "TOpe", "TAgr", "TCon")
-  rownames(m_dload) <- ifelse((1:nrow(m_dload))<10,paste0("T","0",1:nrow(m_dload)), paste0("T",1:nrow(m_dload)))
-  
-  tirt_bft <- tirtMplusSyntax(design.load = m_dload, 
-                              names.pairs = NULL,
-                              item.short = "T",
-                              id.var = "ID",
-                              file.data = "bft.dat", 
-                              title = paste0("bft", design[c, "simSeed"]), 
-                              out.command = "sampstat standardized;",
-                              fscores.file = paste0("fs.dat"),
-                              missings.as = "-99")
-  # save as input-file
-  cat(paste(tirt_bft, collapse="\n\n"), 
-      file=paste0("7_simulation_study/TIRT/tirt-bft.inp"))
-  
-  # run TIRT
-  MplusAutomation::runModels(target = "7_simulation_study/TIRT")
-  
-  # read TIRT results an check for warnings
-  tirt <- MplusAutomation::readModels(target = "7_simulation_study/TIRT")
-  
-  # check whether there were convergence or other problems
-  if(length(tirt)==0){
-    next
-  }
-
-  # import parameters from mplus output
-  bt <- MplusAutomation::readModels("7_simulation_study/TIRT", what=c("parameters", "sampstat"))
-  bt.pars <- bt$parameters$unstandardized
-  
-  # factor scores
-  m_theta.bt <- try(read.table("7_simulation_study/TIRT/fs.dat", header = FALSE, 
-                               na.strings = "*")[,c(71,61,63,65,67,69)], 
-                    silent = TRUE)
-  
-  # aboard replication if factor scores could not be computed
-  if(grepl("cannot open the connection", m_theta.bt)){
-    next
-  }
-  
-  colnames(m_theta.bt)<- c("ID",paste0(c("N","E","O","A","C"),"_bt"))
-  
-  # data frame of all CR indices ----
-  dcri <- data.frame(ID = bft[,1], 
-                     #was careless responding simulated?
-                     CR = c(rep(0, n_care), rep(1, nrow(m_CR_resp))))
-  
-  # Consistency Score ----
-  dcri$cs <- consisScore(
-    quest.pars = bt.pars,
-    no.b = b,
-    no.traits = 5,
-    all.items = all_items,
-    quest = "BT",
-    m.theta = m_theta.bt[, 2:6],
-    d.bi = bft[, 2:61])
-  
-  # Mahalanobis Distance ----
-  cor.bt <- cor2mat(bt)
-  thresh.bt <- thresh2vec(bt)
-  d_center.bt <- sweep(bft[, 2:61], 2L, thresh.bt)
-  dcri$md <- mahalanobis(d_center.bt, center = FALSE, cov = cor.bt)
- 
-  # LongOrderMax ----
-  blocks <- matrix(seq(1:I), m, b)
-  dat.b <- apply(blocks, 2, function(bn, d.r) 
-    apply(d.r[,bn], 1, paste, collapse=""), m_all)
-  
-  # calculate longOrder for each participant
-  m_lo <- longOrder(IDs = bft[, "ID"],
-                    d.b.o = dat.b,
-                    no.b = b)
-  
-  dcri$lom <- longOrderMax(m_lo)
- 
-  # LongOrderAvg ----
-  dcri$loa <- longOrderAvg(m_lo)
- 
-  # SameOrder ----
-  dcri$so <- sameOrder(dat.b, b)
-
-  # Triplet Variance ----
-  dcri$tv <- tripletVariance(dat.b)
-  
-  # apply cut-off values
-  dcri$cs.cr <- ifelse(dcri$cs < .64, 1, 0)
-  dcri$md.cr <- ifelse(abs(dcri$md) > qchisq(p = 1-0.05, df = 60), 1, 0)
-  dcri$lom.cr <- ifelse(dcri$lom > 7, 1, 0)
-  dcri$loa.cr <- ifelse(dcri$loa > 2, 1, 0)
-  dcri$so.cr <- ifelse(dcri$so > .4, 1, 0)
-  dcri$tv.cr <- ifelse(dcri$tv < .7, 1, 0)
-  
-  # compute performance measures according to Lalkhen & McCluskey (2008) ----
-  # se - sensitivity
-  # sp - specificity
-  # ppv - positive predictive value
-  # npv - negative predictive value
-  
-  # prefix (e.g., "cs.") is added to avoid errors in computation in case an index
-  # could not be computed
-  cs.tp <- nrow(dcri[dcri$CR==1 & dcri$cs.cr==1, ])
-  cs.tn <- nrow(dcri[dcri$CR==0 & dcri$cs.cr==0, ])
-  cs.fp <- nrow(dcri[dcri$CR==0 & dcri$cs.cr==1, ])
-  cs.fn <- nrow(dcri[dcri$CR==1 & dcri$cs.cr==0, ])
-  cs.se <- cs.tp/(cs.tp+cs.fn)
-  cs.sp <- cs.tn/(cs.tn+cs.fp)
-  cs.ppv <- cs.tp/(cs.tp+cs.fp)
-  cs.npv <- cs.tn/(cs.tn+cs.fn)
-  
-  md.tp <- nrow(dcri[dcri$CR==1 & dcri$md.cr==1, ])
-  md.tn <- nrow(dcri[dcri$CR==0 & dcri$md.cr==0, ])
-  md.fp <- nrow(dcri[dcri$CR==0 & dcri$md.cr==1, ])
-  md.fn <- nrow(dcri[dcri$CR==1 & dcri$md.cr==0, ])
-  md.se <- md.tp/(md.tp+md.fn)
-  md.sp <- md.tn/(md.tn+md.fp)
-  md.ppv <- md.tp/(md.tp+md.fp)
-  md.npv <- md.tn/(md.tn+md.fn)
-  
-  lom.tp <- nrow(dcri[dcri$CR==1 & dcri$lom.cr==1, ])
-  lom.tn <- nrow(dcri[dcri$CR==0 & dcri$lom.cr==0, ])
-  lom.fp <- nrow(dcri[dcri$CR==0 & dcri$lom.cr==1, ])
-  lom.fn <- nrow(dcri[dcri$CR==1 & dcri$lom.cr==0, ])
-  lom.se <- lom.tp/(lom.tp+lom.fn)
-  lom.sp <- lom.tn/(lom.tn+lom.fp)
-  lom.ppv <- lom.tp/(lom.tp+lom.fp)
-  lom.npv <- lom.tn/(lom.tn+lom.fn)
-  
-  loa.tp <- nrow(dcri[dcri$CR==1 & dcri$loa.cr==1, ])
-  loa.tn <- nrow(dcri[dcri$CR==0 & dcri$loa.cr==0, ])
-  loa.fp <- nrow(dcri[dcri$CR==0 & dcri$loa.cr==1, ])
-  loa.fn <- nrow(dcri[dcri$CR==1 & dcri$loa.cr==0, ])
-  loa.se <- loa.tp/(loa.tp+loa.fn)
-  loa.sp <- loa.tn/(loa.tn+loa.fp)
-  loa.ppv <- loa.tp/(loa.tp+loa.fp)
-  loa.npv <- loa.tn/(loa.tn+loa.fn)
-  
-  so.tp <- nrow(dcri[dcri$CR==1 & dcri$so.cr==1, ])
-  so.tn <- nrow(dcri[dcri$CR==0 & dcri$so.cr==0, ])
-  so.fp <- nrow(dcri[dcri$CR==0 & dcri$so.cr==1, ])
-  so.fn <- nrow(dcri[dcri$CR==1 & dcri$so.cr==0, ])
-  so.se <- so.tp/(so.tp+so.fn)
-  so.sp <- so.tn/(so.tn+so.fp)
-  so.ppv <- so.tp/(so.tp+so.fp)
-  so.npv <- so.tn/(so.tn+so.fn)
-  
-  tv.tp <- nrow(dcri[dcri$CR==1 & dcri$tv.cr==1, ])
-  tv.tn <- nrow(dcri[dcri$CR==0 & dcri$tv.cr==0, ])
-  tv.fp <- nrow(dcri[dcri$CR==0 & dcri$tv.cr==1, ])
-  tv.fn <- nrow(dcri[dcri$CR==1 & dcri$tv.cr==0, ])
-  tv.se <- tv.tp/(tv.tp+tv.fn)
-  tv.sp <- tv.tn/(tv.tn+tv.fp)
-  tv.ppv <- tv.tp/(tv.tp+tv.fp)
-  tv.npv <- tv.tn/(tv.tn+tv.fn)
-  
-  rep_result <- data.frame(seed = design[c, "simSeed"],
-                           rep = design[c, "replication"],
-                           cs_mean = mean(dcri$cs),
-                           md_mean = mean(dcri$md),
-                           lom_mean = mean(dcri$lom),
-                           loa_mean = mean(dcri$loa),
-                           so_mean = mean(dcri$so),
-                           tv_mean = mean(dcri$tv),
-                           cs_sd = sd(dcri$cs),
-                           md_sd = sd(dcri$md),
-                           lom_sd = sd(dcri$lom),
-                           loa_sd = sd(dcri$loa),
-                           so_sd = sd(dcri$so),
-                           tv_sd = sd(dcri$tv),
-                           cs_se = cs.se,
-                           cs_sp = cs.sp,
-                           cs_ppv = cs.ppv,
-                           cs_npv = cs.npv,
-                           md_se = md.se,
-                           md_sp = md.sp,
-                           md_ppv = md.ppv,
-                           md_npv = md.npv,
-                           lom_se = lom.se,
-                           lom_sp = lom.sp,
-                           lom_ppv = lom.ppv,
-                           lom_npv = lom.npv,
-                           loa_se = loa.se,
-                           loa_sp = loa.sp,
-                           loa_ppv = loa.ppv,
-                           loa_npv = loa.npv,
-                           so_se = so.se,
-                           so_sp = so.sp,
-                           so_ppv = so.ppv,
-                           so_npv = so.npv,
-                           tv_se = tv.se,
-                           tv_sp = tv.sp,
-                           tv_ppv = tv.ppv,
-                           tv_npv = tv.npv)
-  saveRDS(rep_result, file = paste0("7_simulation_study/replications/", 
-                                    "repRes", design[c, "simSeed"], ".RDS"))
-  
-  rep_result <- NULL
-}
+                 # select condition
+                 con <- NULL
+                 con <- design[c, ]
+                 
+                 # reset matrices 
+                 m_Care_resp <- NULL
+                 m_CR_ro <- NULL
+                 m_CR_mro <- NULL
+                 m_CR_sro <- NULL
+                 traits <- NULL
+                 rep_result <- NULL
+                 
+                 #set simulation seed
+                 set.seed(design[c, "simSeed"])
+                 seed <- design[c, "simSeed"]
+                 
+                 # simulation of careful/thoughtful responses -------------------------------
+                 # sample size of careful subsample
+                 n_care <- round(N*(1-con[, "propOfCR"]))
+                 
+                 # draw traits of n_care participants ----
+                 traits <- tryCatch(
+                   expr = {
+                     mvtnorm::rmvnorm(n_care, v_mu, m_phi, method = "chol")
+                   },
+                   error = function(e){
+                     print(e)
+                     FALSE
+                   },
+                   warning = function(w) {
+                     print(w)
+                     FALSE
+                   } 
+                 )
+                 
+                 if(is.logical(traits)){
+                   return(NA)
+                 }
+                 dir.create(sprintf("TIRT/r-%i", c))
+                 
+                 # simulate item parameter ----
+                 bft_items <- sim.items(m_dload, b, m, load, int)
+                 
+                 # simulation of the responses as ranks
+                 resp <- sim.responses(traits, bft_items, m_dload, b, m, return.index = FALSE)
+                 
+                 # save as matrix
+                 m_Care_resp <- resp$ranks
+                 
+                 
+                 # simulation of different careless responding pattern ----------------------
+                 
+                 if(con[, "randomOrder"] != 0){
+                   
+                   # size of sub-sample
+                   n_randomOrder <- N*(con[, "propOfCR"])*(con[, "randomOrder"])
+                   
+                   # matrix for responses
+                   m_CR_ro <- matrix(NA, nrow = n_randomOrder, ncol = b*m)
+                   
+                   # sample rank orders
+                   m_CR_ro <- sampRepRank(m_CR_ro, no_rep = 1)
+                 }
+                 
+                 if(con[, "modRepOrder"] != 0){
+                   
+                   # size of sub-sample
+                   n_modRepOrder <- N*(con[, "propOfCR"])*(con[, "modRepOrder"])
+                   
+                   # matrix for responses
+                   m_CR_mro <- matrix(NA, nrow = n_modRepOrder, ncol = b*m)
+                   
+                   # sample rank orders
+                   m_CR_mro <- sampRepRank(m_CR_mro, no_rep = 5)
+                 }
+                 
+                 if(con[, "stroRepOrder"] != 0){
+                   
+                   # size of sub-sample
+                   n_stroRepOrder <- N*(con[, "propOfCR"])*(con[, "stroRepOrder"])
+                   
+                   # matrix for responses
+                   m_CR_sro <- matrix(NA, nrow = n_stroRepOrder, ncol = b*m)
+                   
+                   # sample rank orders
+                   m_CR_sro <- sampRepRank(m_CR_sro, no_rep = 20)
+                 }
+                 
+                 # combine all response pattern in this condition to one matrix -------------
+                 m_CR_resp <- NULL
+                 
+                 if(!is.null(m_CR_ro) && !is.null(m_CR_mro)){
+                   m_CR_resp <- rbind(m_CR_ro, m_CR_mro)
+                 } else if(!is.null(m_CR_ro) && !is.null(m_CR_sro)){
+                   m_CR_resp <- rbind(m_CR_ro, m_CR_sro)
+                 } else if(!is.null(m_CR_ro) && is.null(m_CR_mro) && is.null(m_CR_sro)){
+                   m_CR_resp <- m_CR_ro
+                 } else if(is.null(m_CR_ro) && !is.null(m_CR_mro)){
+                   m_CR_resp <- m_CR_mro
+                 } else{
+                   m_CR_resp <- m_CR_sro
+                 }
+                 m_all <- NULL
+                 m_all <- rbind(m_Care_resp, m_CR_resp)
+                 
+                 # apply MFC careless responding indices ------------------------------------
+                 ID <- 1:nrow(m_all)
+                 
+                 # recode rank order to binary outcomes
+                 bft <- reTri(as.data.frame(m_all), "b")
+                 bft <- cbind(ID, bft)
+                 
+                 # save binary outcomes
+                 multiplex::write.dat(bft, sprintf("TIRT/r-%i", c))
+                 
+                 # rename traits an variables in design load matrix
+                 colnames(m_dload) <- c("TNeu", "TExt", "TOpe", "TAgr", "TCon")
+                 rownames(m_dload) <- ifelse((1:nrow(m_dload))<10,paste0("T","0",1:nrow(m_dload)), paste0("T",1:nrow(m_dload)))
+                 
+                 tirt_bft <- tirtMplusSyntax(design.load = m_dload, 
+                                             names.pairs = NULL,
+                                             item.short = "T",
+                                             id.var = "ID",
+                                             file.data = "bft.dat",
+                                             title = paste0("bft", design[c, "simSeed"]), 
+                                             out.command = "sampstat standardized;",
+                                             fscores.file = "fs.dat",
+                                             missings.as = "-99")
+                 # save as input-file
+                 cat(paste(tirt_bft, collapse="\n\n"), 
+                     file=paste0(sprintf("TIRT/r-%i/tirt-bft.inp", c)))
+                 
+                 # run TIRT
+                 MplusAutomation::runModels(target = sprintf("TIRT/r-%i", c))
+                 
+                 # read TIRT results an check for warnings
+                 tirt <- MplusAutomation::readModels(target = sprintf("TIRT/r-%i", c))
+                 
+                 # check whether there were convergence or other problems
+                 if(length(tirt)==0){
+                   return(NA)
+                 }
+                 
+                 # import parameters from mplus output
+                 bt <- MplusAutomation::readModels(sprintf("TIRT/r-%i", c), what=c("parameters", "sampstat"))
+                 bt.pars <- bt$parameters$unstandardized
+                 
+                 # factor scores
+                 #m_theta.bt <- try(read.table(sprintf("TIRT/r-%i/fs.dat", c), header = FALSE, 
+                 #                             na.strings = "*")[,c(71,61,63,65,67,69)], 
+                 #                  silent = TRUE)
+                 
+                 m_theta.bt <- tryCatch(
+                   expr = {
+                     read.table(sprintf("TIRT/r-%i/fs.dat", c), header = FALSE, 
+                                na.strings = "*")[,c(71,61,63,65,67,69)]
+                   },
+                   error = function(e){
+                     print(e)
+                     FALSE
+                   },
+                   warning = function(w) {
+                     print(w)
+                     FALSE
+                   } 
+                 )
+                 
+                 # aboard replication if factor scores could not be computed
+                 if(is.logical(m_theta.bt)){
+                   return(NA)
+                 }
+                 
+                 colnames(m_theta.bt)<- c("ID",paste0(c("N","E","O","A","C"),"_bt"))
+                 
+                 # data frame of all CR indices ----
+                 dcri <- data.frame(ID = bft[,1], 
+                                    #was careless responding simulated?
+                                    CR = c(rep(0, n_care), rep(1, nrow(m_CR_resp))))
+                 
+                 # Consistency Score ----
+                 dcri$cs <- consisScore(
+                   quest.pars = bt.pars,
+                   no.b = b,
+                   no.traits = 5,
+                   all.items = all_items,
+                   quest = "BT",
+                   m.theta = m_theta.bt[, 2:6],
+                   d.bi = bft[, 2:61])
+                 
+                 # Mahalanobis Distance ----
+                 cor.bt <- cor2mat(bt)
+                 thresh.bt <- thresh2vec(bt)
+                 d_center.bt <- sweep(bft[, 2:61], 2L, thresh.bt)
+                 dcri$md <- mahalanobis(d_center.bt, center = FALSE, cov = cor.bt)
+                 
+                 # LongOrderMax ----
+                 blocks <- matrix(seq(1:I), m, b)
+                 dat.b <- apply(blocks, 2, function(bn, d.r) 
+                   apply(d.r[,bn], 1, paste, collapse=""), m_all)
+                 
+                 # calculate longOrder for each participant
+                 m_lo <- longOrder(IDs = bft[, "ID"],
+                                   d.b.o = dat.b,
+                                   no.b = b)
+                 
+                 dcri$lom <- longOrderMax(m_lo)
+                 
+                 # LongOrderAvg ----
+                 dcri$loa <- longOrderAvg(m_lo)
+                 
+                 # SameOrder ----
+                 dcri$so <- sameOrder(dat.b, b)
+                 
+                 # Triplet Variance ----
+                 dcri$tv <- tripletVariance(dat.b)
+                 
+                 # apply cut-off values
+                 dcri$cs.cr <- ifelse(dcri$cs < .64, 1, 0)
+                 dcri$md.cr <- ifelse(abs(dcri$md) > qchisq(p = 1-0.05, df = 60), 1, 0)
+                 dcri$lom.cr <- ifelse(dcri$lom > 7, 1, 0)
+                 dcri$loa.cr <- ifelse(dcri$loa > 2, 1, 0)
+                 dcri$so.cr <- ifelse(dcri$so > .4, 1, 0)
+                 dcri$tv.cr <- ifelse(dcri$tv < .7, 1, 0)
+                 
+                 # compute performance measures according to Lalkhen & McCluskey (2008) ----
+                 # se - sensitivity
+                 # sp - specificity
+                 # ppv - positive predictive value
+                 # npv - negative predictive value
+                 
+                 # prefix (e.g., "cs.") is added to avoid errors in computation in case an index
+                 # could not be computed
+                 cs.tp <- nrow(dcri[dcri$CR==1 & dcri$cs.cr==1, ])
+                 cs.tn <- nrow(dcri[dcri$CR==0 & dcri$cs.cr==0, ])
+                 cs.fp <- nrow(dcri[dcri$CR==0 & dcri$cs.cr==1, ])
+                 cs.fn <- nrow(dcri[dcri$CR==1 & dcri$cs.cr==0, ])
+                 cs.se <- cs.tp/(cs.tp+cs.fn)
+                 cs.sp <- cs.tn/(cs.tn+cs.fp)
+                 cs.ppv <- cs.tp/(cs.tp+cs.fp)
+                 cs.npv <- cs.tn/(cs.tn+cs.fn)
+                 
+                 md.tp <- nrow(dcri[dcri$CR==1 & dcri$md.cr==1, ])
+                 md.tn <- nrow(dcri[dcri$CR==0 & dcri$md.cr==0, ])
+                 md.fp <- nrow(dcri[dcri$CR==0 & dcri$md.cr==1, ])
+                 md.fn <- nrow(dcri[dcri$CR==1 & dcri$md.cr==0, ])
+                 md.se <- md.tp/(md.tp+md.fn)
+                 md.sp <- md.tn/(md.tn+md.fp)
+                 md.ppv <- md.tp/(md.tp+md.fp)
+                 md.npv <- md.tn/(md.tn+md.fn)
+                 
+                 lom.tp <- nrow(dcri[dcri$CR==1 & dcri$lom.cr==1, ])
+                 lom.tn <- nrow(dcri[dcri$CR==0 & dcri$lom.cr==0, ])
+                 lom.fp <- nrow(dcri[dcri$CR==0 & dcri$lom.cr==1, ])
+                 lom.fn <- nrow(dcri[dcri$CR==1 & dcri$lom.cr==0, ])
+                 lom.se <- lom.tp/(lom.tp+lom.fn)
+                 lom.sp <- lom.tn/(lom.tn+lom.fp)
+                 lom.ppv <- lom.tp/(lom.tp+lom.fp)
+                 lom.npv <- lom.tn/(lom.tn+lom.fn)
+                 
+                 loa.tp <- nrow(dcri[dcri$CR==1 & dcri$loa.cr==1, ])
+                 loa.tn <- nrow(dcri[dcri$CR==0 & dcri$loa.cr==0, ])
+                 loa.fp <- nrow(dcri[dcri$CR==0 & dcri$loa.cr==1, ])
+                 loa.fn <- nrow(dcri[dcri$CR==1 & dcri$loa.cr==0, ])
+                 loa.se <- loa.tp/(loa.tp+loa.fn)
+                 loa.sp <- loa.tn/(loa.tn+loa.fp)
+                 loa.ppv <- loa.tp/(loa.tp+loa.fp)
+                 loa.npv <- loa.tn/(loa.tn+loa.fn)
+                 
+                 so.tp <- nrow(dcri[dcri$CR==1 & dcri$so.cr==1, ])
+                 so.tn <- nrow(dcri[dcri$CR==0 & dcri$so.cr==0, ])
+                 so.fp <- nrow(dcri[dcri$CR==0 & dcri$so.cr==1, ])
+                 so.fn <- nrow(dcri[dcri$CR==1 & dcri$so.cr==0, ])
+                 so.se <- so.tp/(so.tp+so.fn)
+                 so.sp <- so.tn/(so.tn+so.fp)
+                 so.ppv <- so.tp/(so.tp+so.fp)
+                 so.npv <- so.tn/(so.tn+so.fn)
+                 
+                 tv.tp <- nrow(dcri[dcri$CR==1 & dcri$tv.cr==1, ])
+                 tv.tn <- nrow(dcri[dcri$CR==0 & dcri$tv.cr==0, ])
+                 tv.fp <- nrow(dcri[dcri$CR==0 & dcri$tv.cr==1, ])
+                 tv.fn <- nrow(dcri[dcri$CR==1 & dcri$tv.cr==0, ])
+                 tv.se <- tv.tp/(tv.tp+tv.fn)
+                 tv.sp <- tv.tn/(tv.tn+tv.fp)
+                 tv.ppv <- tv.tp/(tv.tp+tv.fp)
+                 tv.npv <- tv.tn/(tv.tn+tv.fn)
+                 
+                 rep_result <- data.frame(seed = design[c, "simSeed"],
+                                          rep = design[c, "replication"],
+                                          cs_mean = mean(dcri$cs),
+                                          md_mean = mean(dcri$md),
+                                          lom_mean = mean(dcri$lom),
+                                          loa_mean = mean(dcri$loa),
+                                          so_mean = mean(dcri$so),
+                                          tv_mean = mean(dcri$tv),
+                                          cs_sd = sd(dcri$cs),
+                                          md_sd = sd(dcri$md),
+                                          lom_sd = sd(dcri$lom),
+                                          loa_sd = sd(dcri$loa),
+                                          so_sd = sd(dcri$so),
+                                          tv_sd = sd(dcri$tv),
+                                          cs_se = cs.se,
+                                          cs_sp = cs.sp,
+                                          cs_ppv = cs.ppv,
+                                          cs_npv = cs.npv,
+                                          md_se = md.se,
+                                          md_sp = md.sp,
+                                          md_ppv = md.ppv,
+                                          md_npv = md.npv,
+                                          lom_se = lom.se,
+                                          lom_sp = lom.sp,
+                                          lom_ppv = lom.ppv,
+                                          lom_npv = lom.npv,
+                                          loa_se = loa.se,
+                                          loa_sp = loa.sp,
+                                          loa_ppv = loa.ppv,
+                                          loa_npv = loa.npv,
+                                          so_se = so.se,
+                                          so_sp = so.sp,
+                                          so_ppv = so.ppv,
+                                          so_npv = so.npv,
+                                          tv_se = tv.se,
+                                          tv_sp = tv.sp,
+                                          tv_ppv = tv.ppv,
+                                          tv_npv = tv.npv,
+                                          error = NA)
+                 saveRDS(rep_result, file = paste0("replications/", 
+                                                   "repRes", design[c, "simSeed"], ".RDS"))
+                 
+                 # delete folder with TIRT input and output data
+                 unlink(paste0("TIRT/r-",c), recursive = TRUE)
+                 
+               }
 
 stopCluster(cl)
 
+###
+
+# combine all replications to one data frame and save the result
+
+data <- lapply(list.files("replications", full.names = TRUE),
+               readRDS)
+dat <- do.call(rbind, data)
+
+saveRDS(dat, "simRes7200.RDS")
 
 ###
