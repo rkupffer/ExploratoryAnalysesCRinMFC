@@ -157,7 +157,7 @@ v_mu <- rep(0, 5)
 load <- c(.65, .8)
 
 # range of intercepts
-int <- c(-1, .1)
+int <- c(-1, 1)
 
 # varying parameter ----
 
@@ -172,7 +172,7 @@ factor_propOfCR <- seq(.02, .4, by = .05)
 r <- 1:10
 
 # smaller sample size for test
-N <- 1000
+N <- 500
 
 
 
@@ -209,50 +209,59 @@ design$relevant <- ifelse(
 design <- design[design$relevant == 1, ]
 design$relevant <- NULL
 
-
 # simulation seed
 design$simSeed <- paste0("318", 1:nrow(design))
 
-i <- 101
 
 ####------------------ start simulation -------------------####
 
-# cl <- makeCluster(10)
-# registerDoParallel(cl)
+cl <- makeCluster(2)
+registerDoParallel(cl)
 
-for(i in 1:nrow(design)){
-  
-  #set simulation seed
-  set.seed(design[i, "simSeed"])
+res <- foreach(c = 1:nrow(design), 
+               .inorder = FALSE,
+               .packages = c("CRinMFC", "TirtAutomation", "MFCblockInfo"))%dopar%{
   
   # select condition
   con <- NULL
-  con <- design[i, ]
+  con <- design[c, ]
   
   # reset matrices 
   m_Care_resp <- NULL
   m_CR_ro <- NULL
   m_CR_mro <- NULL
   m_CR_sro <- NULL
+  traits <- NULL
   
   # delete content of the previous TIRT folder
   unlink("7_simulation_study/TIRT/*")
   
+  #set simulation seed
+  set.seed(design[c, "simSeed"])
+  seed <- design[c, "simSeed"]
+  
   # simulation of careful/thoughtful responses -------------------------------
   # sample size of careful subsample
-  n_care <- N*(1-con[, "propOfCR"])
+  n_care <- round(N*(1-con[, "propOfCR"]))
+  
+  # draw traits of n_care participants ----
+  traits <- try(mvtnorm::rmvnorm(n_care, v_mu, m_phi, method = "chol"), 
+                silent = TRUE)
+  
+  if(grepl("Error in matrix", traits)){
+    #seed <- paste0("9",seed)
+    next
+  }
   
   # simulate item parameter ----
   bft_items <- sim.items(m_dload, b, m, load, int)
-  
-  # draw traits of n_care participants
-  traits <- mvtnorm::rmvnorm(n_care, v_mu, m_phi, method = "chol")
   
   # simulation of the responses as ranks
   resp <- sim.responses(traits, bft_items, m_dload, b, m, return.index = FALSE)
   
   # save as matrix
   m_Care_resp <- resp$ranks
+  
   
   # simulation of different careless responding pattern ----------------------
   
@@ -328,7 +337,7 @@ for(i in 1:nrow(design)){
                               item.short = "T",
                               id.var = "ID",
                               file.data = "bft.dat", 
-                              title = paste0("bft", design[i, "simSeed"]), 
+                              title = paste0("bft", design[c, "simSeed"]), 
                               out.command = "sampstat standardized;",
                               fscores.file = paste0("fs.dat"),
                               missings.as = "-99")
@@ -341,15 +350,26 @@ for(i in 1:nrow(design)){
   
   # read TIRT results an check for warnings
   tirt <- MplusAutomation::readModels(target = "7_simulation_study/TIRT")
-  tirt$warnings
-  tirt$errors
   
+  # check whether there were convergence or other problems
+  if(length(tirt)==0){
+    next
+  }
+
   # import parameters from mplus output
   bt <- MplusAutomation::readModels("7_simulation_study/TIRT", what=c("parameters", "sampstat"))
   bt.pars <- bt$parameters$unstandardized
   
   # factor scores
-  m_theta.bt <- read.table("7_simulation_study/TIRT/fs.dat", header = FALSE, na.strings = "*")[,c(71,61,63,65,67,69)]
+  m_theta.bt <- try(read.table("7_simulation_study/TIRT/fs.dat", header = FALSE, 
+                               na.strings = "*")[,c(71,61,63,65,67,69)], 
+                    silent = TRUE)
+  
+  # aboard replication if factor scores could not be computed
+  if(grepl("cannot open the connection", m_theta.bt)){
+    next
+  }
+  
   colnames(m_theta.bt)<- c("ID",paste0(c("N","E","O","A","C"),"_bt"))
   
   # data frame of all CR indices ----
@@ -464,8 +484,8 @@ for(i in 1:nrow(design)){
   tv.ppv <- tv.tp/(tv.tp+tv.fp)
   tv.npv <- tv.tn/(tv.tn+tv.fn)
   
-  rep_result <- data.frame(seed = design[i, "simSeed"],
-                           rep = design[i, "replication"],
+  rep_result <- data.frame(seed = design[c, "simSeed"],
+                           rep = design[c, "replication"],
                            cs_mean = mean(dcri$cs),
                            md_mean = mean(dcri$md),
                            lom_mean = mean(dcri$lom),
@@ -503,12 +523,12 @@ for(i in 1:nrow(design)){
                            tv_ppv = tv.ppv,
                            tv_npv = tv.npv)
   saveRDS(rep_result, file = paste0("7_simulation_study/replications/", 
-                                    "repRes", design[i, "simSeed"], ".RDS"))
+                                    "repRes", design[c, "simSeed"], ".RDS"))
   
   rep_result <- NULL
 }
 
-
+stopCluster(cl)
 
 
 ###
