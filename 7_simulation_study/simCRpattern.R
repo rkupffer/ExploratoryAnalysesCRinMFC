@@ -5,17 +5,9 @@
 # varying proportions of different response pattern.
 
 # packages ----
-install.packages("numDeriv")
-install.packages("plot3D")
 library(MFCblockInfo)
-#install.packages("MFCblockInfo_0.1.0.tar.gz", 
-#                source = TRUE, repos=NULL, dependecies = TRUE)
 library(TirtAutomation)
-#install.packages("TirtAutomation_0.0.0.9000.tar.gz", 
-#                 source = TRUE, repos=NULL, dependecies = FALSE)
 library(CRinMFC)
-#install.packages("CRinMFC_0.1.0.tar.gz", 
-#                 source = TRUE, repos=NULL, dependecies = TRUE)
 library(doParallel)
 
 rm(list = ls())
@@ -121,6 +113,7 @@ sampRepRank <- function(m_out,           # output matrix
   return(m_out)
 }
 
+#######################################################################
 ####------------------- simulation design -------------------------####
 
 # fixed parameter ----
@@ -174,28 +167,10 @@ p <- seq(0, 1, .25)
 factor_randomOrder <- p
 factor_strongRepOrder <- p
 factor_moderateRepOrder <- p
-factor_propOfCR <- seq(.02, .4, by = .05)
+factor_propOfCR <- seq(.02, .2, by = .05)
 
-# smaller number of replications for test
-r <- 1:100
-
-# smaller sample size for test
-#N <- 500
-
-
-
-
-# actual design
-#factor_randomOrder <- c(rep(c(0,.25,.5,.75,1),2))
-#factor_strongRepOrder <- c(1,.75,.5,.25, rep(0, 6))
-#factor_moderateRepOrder <- c(rep(0, 5), 1,.75,.5,.25, 0)
-#factor_propOfCR <- c(.02, .04, .06, .08, .10, .12, .14, .16, .18, .20,
-#                     .22, .24, .26, .28, .30, .32, .34, .36, .38, .40)
-# no of replications
-#r <- 1:1000
-# if(N != 1000) {print("Achtung!!!!!!!!!!!!!!!!! Geplante SP-Groesse ist 1000")}
-
-
+# replications
+r <- 1:1000
 
 # matrix with simulation conditions
 design <- expand.grid("replication" = r,
@@ -208,7 +183,7 @@ head(design)
 design$relevant <- NA
 # proportion can not be larger than 1
 # no careless responding is also not reasonable
-# either strong or moderate repetions of rank orders
+# either strong or moderate repetitions of rank orders
 design$relevant <- ifelse(
   rowSums(design[, c("randomOrder", "stroRepOrder", "modRepOrder")])!= 1  |
     rowSums(design[, c("randomOrder", "stroRepOrder", "modRepOrder")]) == 0 |
@@ -221,6 +196,8 @@ design$relevant <- NULL
 design$simSeed <- paste0("318", 1:nrow(design))
 
 
+###############################################################
+###############################################################
 ####------------------ start simulation -------------------####
 
 cl <- parallel::makeCluster(10)
@@ -229,12 +206,12 @@ doParallel::registerDoParallel(cl)
 unlink("TIRT/*", recursive=TRUE)
 unlink("replications/*", recursive=TRUE)
 
-res <- foreach(c = 1:nrow(design), 
+res <- foreach(j = 1:nrow(design), 
                .inorder = FALSE,
                .packages = c("CRinMFC", "TirtAutomation", "MFCblockInfo"))%dopar%{
                  # select condition
                  con <- NULL
-                 con <- design[c, ]
+                 con <- design[j, ]
                  
                  # reset matrices 
                  m_Care_resp <- NULL
@@ -245,8 +222,8 @@ res <- foreach(c = 1:nrow(design),
                  rep_result <- NULL
                  
                  #set simulation seed
-                 set.seed(design[c, "simSeed"])
-                 seed <- design[c, "simSeed"]
+                 set.seed(design[j, "simSeed"])
+                 seed <- design[j, "simSeed"]
                  
                  # simulation of careful/thoughtful responses ----
                  # sample size of careful subsample
@@ -259,23 +236,23 @@ res <- foreach(c = 1:nrow(design),
                    },
                    error = function(e){
                      print(e)
-                     rep_result <- data.frame(seed = design[c, "simSeed"],
-                                              rep = design[c, "replication"],
-                                              rep(NA, 36),
-                                              error = 1)
-                     return(rep_result)
+                     FALSE
                    }
                  )
                  
-                 if(rep_result$error == 1){
+                 if(is.logical(traits)){
+                   rep_result <- data.frame(seed = design[j, "simSeed"],
+                                            rep = design[j, "replication"],
+                                            error = 1)
                    saveRDS(rep_result, file = 
                              paste0("replications/", 
-                                    "repRes", 
-                                    design[c, "simSeed"], ".RDS"))
+                                    "repResError", 
+                                    design[j, "simSeed"], ".RDS"))
+                   return(NA)
                  }
                  
                  # if no error occurs, create a folder for Mplus inp, out & data
-                 dir.create(sprintf("TIRT/r-%i", c))
+                 dir.create(sprintf("TIRT/r-%i", j))
                  
                  # simulate item parameter ----
                  bft_items <- sim.items(m_dload, b, m, load, int)
@@ -287,7 +264,7 @@ res <- foreach(c = 1:nrow(design),
                  m_Care_resp <- resp$ranks
                  
                  
-                 # simulation of different careless responding pattern ----------------------
+                 # simulation of different careless responding pattern ----
                  
                  if(con[, "randomOrder"] != 0){
                    
@@ -350,7 +327,7 @@ res <- foreach(c = 1:nrow(design),
                  bft <- cbind(ID, bft)
                  
                  # save binary outcomes
-                 multiplex::write.dat(bft, sprintf("TIRT/r-%i", c))
+                 multiplex::write.dat(bft, sprintf("TIRT/r-%i", j))
                  
                  # rename traits an variables in design load matrix
                  colnames(m_dload) <- c("TNeu", "TExt", "TOpe", "TAgr", "TCon")
@@ -361,19 +338,19 @@ res <- foreach(c = 1:nrow(design),
                                              item.short = "T",
                                              id.var = "ID",
                                              file.data = "bft.dat",
-                                             title = paste0("bft", design[c, "simSeed"]), 
+                                             title = paste0("bft", design[j, "simSeed"]), 
                                              out.command = "sampstat standardized;",
                                              fscores.file = "fs.dat",
                                              missings.as = "-99")
                  # save as input-file
                  cat(paste(tirt_bft, collapse="\n\n"), 
-                     file=paste0(sprintf("TIRT/r-%i/tirt-bft.inp", c)))
+                     file=paste0(sprintf("TIRT/r-%i/tirt-bft.inp", j)))
                  
                  # run TIRT
-                 MplusAutomation::runModels(target = sprintf("TIRT/r-%i", c))
+                 MplusAutomation::runModels(target = sprintf("TIRT/r-%i", j))
                  
                  # read TIRT results an check for warnings
-                 tirt <- MplusAutomation::readModels(target = sprintf("TIRT/r-%i", c))
+                 tirt <- MplusAutomation::readModels(target = sprintf("TIRT/r-%i", j))
                  
                  # check whether there were convergence or other problems
                  if(length(tirt)==0){
@@ -382,31 +359,36 @@ res <- foreach(c = 1:nrow(design),
                  
                  
                  # import parameters from mplus output
-                 bt <- MplusAutomation::readModels(sprintf("TIRT/r-%i", c), what=c("parameters", "sampstat"))
+                 bt <- MplusAutomation::readModels(sprintf("TIRT/r-%i", j), what=c("parameters", "sampstat"))
                  bt.pars <- bt$parameters$unstandardized
                  
                  # factor scores
                   m_theta.bt <- tryCatch(
                    expr = {
-                     read.table(sprintf("TIRT/r-%i/fs.dat", c), header = FALSE, 
+                     read.table(sprintf("TIRT/r-%i/fs.dat", j), header = FALSE, 
                                 na.strings = "*")[,c(71,61,63,65,67,69)]
                    },
                    error = function(e){
                      print(e)
-                     rep_result <- data.frame(seed = design[c, "simSeed"],
-                                              rep = design[c, "replication"],
-                                              rep(NA, 36),
-                                              error = 2)
-                     return(rep_result)
+                     FALSE
+                   },
+                   warning = function(w){
+                     print(w)
+                     FALSE
                    }
                   )
                   
-                  if(rep_result$error == 2){
+                  if(is.logical(m_theta.bt)){
+                    rep_result <- data.frame(seed = design[j, "simSeed"],
+                                             rep = design[j, "replication"],
+                                             error = 1)
                     saveRDS(rep_result, file = 
                               paste0("replications/", 
-                                     "repRes", 
-                                     design[c, "simSeed"], ".RDS"))
+                                     "repResError", 
+                                     design[j, "simSeed"], ".RDS"))
+                    return(NA)
                   }
+                  
                  
                  colnames(m_theta.bt)<- c("ID",paste0(c("N","E","O","A","C"),"_bt"))
                  
@@ -522,8 +504,8 @@ res <- foreach(c = 1:nrow(design),
                  tv.ppv <- tv.tp/(tv.tp+tv.fp)
                  tv.npv <- tv.tn/(tv.tn+tv.fn)
                  
-                 rep_result <- data.frame(seed = design[c, "simSeed"],
-                                          rep = design[c, "replication"],
+                 rep_result <- data.frame(seed = design[j, "simSeed"],
+                                          rep = design[j, "replication"],
                                           cs_mean = mean(dcri$cs),
                                           md_mean = mean(dcri$md),
                                           lom_mean = mean(dcri$lom),
@@ -562,10 +544,10 @@ res <- foreach(c = 1:nrow(design),
                                           tv_npv = tv.npv,
                                           error = NA)
                  saveRDS(rep_result, file = paste0("replications/", 
-                                                   "repRes", design[c, "simSeed"], ".RDS"))
+                                                   "repRes", design[j, "simSeed"], ".RDS"))
                  
                  # delete folder with TIRT input and output data
-                 unlink(paste0("TIRT/r-",c), recursive = TRUE)
+                 unlink(paste0("TIRT/r-",j), recursive = TRUE)
                  
                }
 
