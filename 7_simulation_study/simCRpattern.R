@@ -39,7 +39,8 @@ sampRepRank <- function(m_out,           # output matrix
                         MARGIN = 2, 
                         function(x) sample(ro, 
                                            size = nrow(m_out), 
-                                           replace = TRUE))
+                                           replace = TRUE,
+                                           prob = ro_prob))
     
     # character to numeric ranks
     m_out_num <- matrix(data = NA, nrow = nrow(m_out), ncol = no_ranks2sample*3)
@@ -61,7 +62,8 @@ sampRepRank <- function(m_out,           # output matrix
                         MARGIN = 1:2, 
                         function(x) sample(ro, 
                                            size = 1, 
-                                           replace = TRUE))
+                                           replace = TRUE,
+                                           prob = ro_prob))
     
     
     # character to numeric ranks
@@ -100,7 +102,8 @@ sampRepRank <- function(m_out,           # output matrix
                         MARGIN = 2, 
                         FUN = sample,
                         size = nrow(m_out), 
-                        replace = TRUE)
+                        replace = TRUE,
+                        prob = ro_prob)
     
     # character to numeric ranks
     m_out_num <- ranks2num(rankOrders)
@@ -143,6 +146,9 @@ N <- 1000
 # rank orders stored in a matrix
 ro <- matrix(c("123", "132", "213", "231", "312", "321"), 6, byrow = TRUE)
 
+# vector of rank order probabilities
+ro_prob <- c(.25, rep(.15, 5))
+
 # variance-covariance matrix (Anglim et al., 2020, p. 60)
 m_phi <- matrix(data = c(1, -.49, -.19, -.17, -.48, 
                          -.49, 1, .30, .08, .19, 
@@ -162,12 +168,12 @@ int <- c(-1, 1)
 
 # varying parameter ----
 
-# test design
+# design
 p <- seq(0, 1, .25)
 factor_randomOrder <- p
 factor_strongRepOrder <- p
 factor_moderateRepOrder <- p
-factor_propOfCR <- seq(.02, .2, by = .05)
+factor_propOfCR <- seq(.02, .4, by = .05)
 
 # replications
 r <- 1:1000
