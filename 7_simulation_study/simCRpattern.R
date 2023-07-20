@@ -214,7 +214,7 @@ unlink("replications/*", recursive=TRUE)
 
 res <- foreach(j = 1:nrow(design), 
                .inorder = FALSE,
-               .packages = c("CRinMFC", "TirtAutomation", "MFCblockInfo",),
+               .packages = c("CRinMFC", "TirtAutomation", "MFCblockInfo"),
                .errorhandling = "pass")%dopar%{
                  
                  # select condition
@@ -657,11 +657,10 @@ stopCluster(cl)
 ###
 
 # combine all replications to one data frame and save the result
-
-data <- lapply(list.files("replications", full.names = TRUE),
-               readRDS)
+all_files <- list.files("replications", full.names = TRUE)
+data <- lapply(all_files, readRDS)
 dat <- do.call(rbind, data)
 
-saveRDS(dat, "simRes7200.RDS")
+saveRDS(dat, "simRes2307.RDS")
 
 ###
