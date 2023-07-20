@@ -214,7 +214,9 @@ unlink("replications/*", recursive=TRUE)
 
 res <- foreach(j = 1:nrow(design), 
                .inorder = FALSE,
-               .packages = c("CRinMFC", "TirtAutomation", "MFCblockInfo"))%dopar%{
+               .packages = c("CRinMFC", "TirtAutomation", "MFCblockInfo",),
+               .errorhandling = "pass")%dopar%{
+                 
                  # select condition
                  con <- NULL
                  con <- design[j, ]
@@ -229,33 +231,14 @@ res <- foreach(j = 1:nrow(design),
                  
                  #set simulation seed
                  set.seed(design[j, "simSeed"])
-                 seed <- design[j, "simSeed"]
+                
                  
                  # simulation of careful/thoughtful responses ----
                  # sample size of careful subsample
                  n_care <- round(N*(1-con[, "propOfCR"]))
                  
                  # draw traits of n_care participants ----
-                 traits <- tryCatch(
-                   expr = {
-                     mvtnorm::rmvnorm(n_care, v_mu, m_phi, method = "chol")
-                   },
-                   error = function(e){
-                     print(e)
-                     FALSE
-                   }
-                 )
-                 
-                 if(is.logical(traits)){
-                   rep_result <- data.frame(seed = design[j, "simSeed"],
-                                            rep = design[j, "replication"],
-                                            error = 1)
-                   saveRDS(rep_result, file = 
-                             paste0("replications/", 
-                                    "repResError", 
-                                    design[j, "simSeed"], ".RDS"))
-                   return(NA)
-                 }
+                 traits <- mvtnorm::rmvnorm(n_care, v_mu, m_phi, method = "chol")
                  
                  # if no error occurs, create a folder for Mplus inp, out & data
                  dir.create(sprintf("TIRT/r-%i", j))
@@ -358,14 +341,9 @@ res <- foreach(j = 1:nrow(design),
                  # read TIRT results an check for warnings
                  tirt <- MplusAutomation::readModels(target = sprintf("TIRT/r-%i", j))
                  
-                 # check whether there were convergence or other problems
-                 if(length(tirt)==0){
-                   return(NA)
-                 }
-                 
-                 
                  # import parameters from mplus output
-                 bt <- MplusAutomation::readModels(sprintf("TIRT/r-%i", j), what=c("parameters", "sampstat"))
+                 bt <- MplusAutomation::readModels(sprintf("TIRT/r-%i", j), 
+                                                   what=c("parameters", "sampstat"))
                  bt.pars <- bt$parameters$unstandardized
                  
                  # factor scores
@@ -385,14 +363,131 @@ res <- foreach(j = 1:nrow(design),
                   )
                   
                   if(is.logical(m_theta.bt)){
+                    # if no factor scores were computed, compute indices for
+                    # which no factor scores are needed 
+                    
+                    # data frame of all CR indices ----
+                    dcri <- data.frame(ID = bft[,1], 
+                                       #was careless responding simulated?
+                                       CR = c(rep(0, n_care), rep(1, nrow(m_CR_resp))))
+                    
+                    # LongOrderMax ----
+                    blocks <- matrix(seq(1:I), m, b)
+                    dat.b <- apply(blocks, 2, function(bn, d.r) 
+                      apply(d.r[,bn], 1, paste, collapse=""), m_all)
+                    
+                    # calculate longOrder for each participant
+                    m_lo <- longOrder(IDs = bft[, "ID"],
+                                      d.b.o = dat.b,
+                                      no.b = b)
+                    
+                    dcri$lom <- longOrderMax(m_lo)
+                    
+                    # LongOrderAvg ----
+                    dcri$loa <- longOrderAvg(m_lo)
+                    
+                    # SameOrder ----
+                    dcri$so <- sameOrder(dat.b, b)
+                    
+                    # Triplet Variance ----
+                    dcri$tv <- tripletVariance(dat.b)
+                    
+                    # apply cut-off values
+                    dcri$lom.cr <- ifelse(dcri$lom > 7, 1, 0)
+                    dcri$loa.cr <- ifelse(dcri$loa > 2, 1, 0)
+                    dcri$so.cr <- ifelse(dcri$so > .4, 1, 0)
+                    dcri$tv.cr <- ifelse(dcri$tv < .7, 1, 0)
+                    
+                    # compute performance measures according to Lalkhen & McCluskey (2008) ----
+                    # se - sensitivity
+                    # sp - specificity
+                    # ppv - positive predictive value
+                    # npv - negative predictive value
+                    
+                    lom.tp <- nrow(dcri[dcri$CR==1 & dcri$lom.cr==1, ])
+                    lom.tn <- nrow(dcri[dcri$CR==0 & dcri$lom.cr==0, ])
+                    lom.fp <- nrow(dcri[dcri$CR==0 & dcri$lom.cr==1, ])
+                    lom.fn <- nrow(dcri[dcri$CR==1 & dcri$lom.cr==0, ])
+                    lom.se <- lom.tp/(lom.tp+lom.fn)
+                    lom.sp <- lom.tn/(lom.tn+lom.fp)
+                    lom.ppv <- lom.tp/(lom.tp+lom.fp)
+                    lom.npv <- lom.tn/(lom.tn+lom.fn)
+                    
+                    loa.tp <- nrow(dcri[dcri$CR==1 & dcri$loa.cr==1, ])
+                    loa.tn <- nrow(dcri[dcri$CR==0 & dcri$loa.cr==0, ])
+                    loa.fp <- nrow(dcri[dcri$CR==0 & dcri$loa.cr==1, ])
+                    loa.fn <- nrow(dcri[dcri$CR==1 & dcri$loa.cr==0, ])
+                    loa.se <- loa.tp/(loa.tp+loa.fn)
+                    loa.sp <- loa.tn/(loa.tn+loa.fp)
+                    loa.ppv <- loa.tp/(loa.tp+loa.fp)
+                    loa.npv <- loa.tn/(loa.tn+loa.fn)
+                    
+                    so.tp <- nrow(dcri[dcri$CR==1 & dcri$so.cr==1, ])
+                    so.tn <- nrow(dcri[dcri$CR==0 & dcri$so.cr==0, ])
+                    so.fp <- nrow(dcri[dcri$CR==0 & dcri$so.cr==1, ])
+                    so.fn <- nrow(dcri[dcri$CR==1 & dcri$so.cr==0, ])
+                    so.se <- so.tp/(so.tp+so.fn)
+                    so.sp <- so.tn/(so.tn+so.fp)
+                    so.ppv <- so.tp/(so.tp+so.fp)
+                    so.npv <- so.tn/(so.tn+so.fn)
+                    
+                    tv.tp <- nrow(dcri[dcri$CR==1 & dcri$tv.cr==1, ])
+                    tv.tn <- nrow(dcri[dcri$CR==0 & dcri$tv.cr==0, ])
+                    tv.fp <- nrow(dcri[dcri$CR==0 & dcri$tv.cr==1, ])
+                    tv.fn <- nrow(dcri[dcri$CR==1 & dcri$tv.cr==0, ])
+                    tv.se <- tv.tp/(tv.tp+tv.fn)
+                    tv.sp <- tv.tn/(tv.tn+tv.fp)
+                    tv.ppv <- tv.tp/(tv.tp+tv.fp)
+                    tv.npv <- tv.tn/(tv.tn+tv.fn)
+                    
                     rep_result <- data.frame(seed = design[j, "simSeed"],
                                              rep = design[j, "replication"],
-                                             error = 1)
-                    saveRDS(rep_result, file = 
-                              paste0("replications/", 
-                                     "repResError", 
-                                     design[j, "simSeed"], ".RDS"))
-                    return(NA)
+                                             cs_mean = NA,
+                                             md_mean = NA,
+                                             lom_mean = mean(dcri$lom),
+                                             loa_mean = mean(dcri$loa),
+                                             so_mean = mean(dcri$so),
+                                             tv_mean = mean(dcri$tv),
+                                             cs_sd = NA,
+                                             md_sd = NA,
+                                             lom_sd = sd(dcri$lom),
+                                             loa_sd = sd(dcri$loa),
+                                             so_sd = sd(dcri$so),
+                                             tv_sd = sd(dcri$tv),
+                                             cs_se = NA,
+                                             cs_sp = NA,
+                                             cs_ppv = NA,
+                                             cs_npv = NA,
+                                             md_se = NA,
+                                             md_sp = NA,
+                                             md_ppv = NA,
+                                             md_npv = NA,
+                                             lom_se = lom.se,
+                                             lom_sp = lom.sp,
+                                             lom_ppv = lom.ppv,
+                                             lom_npv = lom.npv,
+                                             loa_se = loa.se,
+                                             loa_sp = loa.sp,
+                                             loa_ppv = loa.ppv,
+                                             loa_npv = loa.npv,
+                                             so_se = so.se,
+                                             so_sp = so.sp,
+                                             so_ppv = so.ppv,
+                                             so_npv = so.npv,
+                                             tv_se = tv.se,
+                                             tv_sp = tv.sp,
+                                             tv_ppv = tv.ppv,
+                                             tv_npv = tv.npv,
+                                             error = "no_fs")
+                    saveRDS(rep_result, file = paste0("replications/", 
+                                                      "repRes", design[j, "simSeed"], ".RDS"))
+                    
+                    # delete folder with TIRT input and output data
+                    unlink(paste0("TIRT/r-",j), recursive = TRUE)
+                    
+                    
+                    return(paste0("no factor scores found ("
+                                  , design[j, "simSeed"]), ")")
                   }
                   
                  
