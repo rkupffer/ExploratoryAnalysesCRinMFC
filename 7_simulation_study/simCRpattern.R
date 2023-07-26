@@ -12,21 +12,41 @@ library(doParallel)
 
 rm(list = ls())
 
-# function: string ranks to numeric ----
+# function: ranks2num ----
+#'
+#' @title ranks2num
+#' 
+#' @description casts strings to numeric output
+#' @param rankOrder string with three digits (e.g., "123")
+#' @return matrix with numeric output (e.g., 1 2 3) 
+#' 
 ranks2num<- function(rankOrder){
   out <- rbind(as.numeric(substr(rankOrder, 1, 1)),
                as.numeric(substr(rankOrder, 2, 2)),
                as.numeric(substr(rankOrder, 3, 3)))
+  return(out)
 }
 
-# function: sample and repeat rank orders ----
+# function: sampRepRank ----
+#'
+#' @title sampRepRank
+#' 
+#' @description with this function different types of careless responding 
+#' pattern can be modeled. The type of careless responding pattern depends
+#' on the parameter no_rep.
+#' 
+#' @param m_out output matrix
+#' @param no_rep number of repetitions per rank (1 -> randomOrder, 5 -> moderateRepOrder, 
+#' 20 -> strongRepOrder)
+#' @param ro rank orders
+#' @param ro_prob probabilities of the rank orders
+#' @param b number of blocks in the questionnaire
+#' 
+#' @return matrix containing the different types of careless response pattern
+#'
 
-sampRepRank <- function(m_out,           # output matrix
-                        no_rep){         # number of repetitions per rank
-  # 1 - randomOrder
-  # 5 - moderateRepOrder
-  # 20- strongRepOrder
-  
+sampRepRank <- function(m_out, no_rep, ro, ro_prob, b){             
+
   # no of ranks drawn (per participant)
   no_ranks2sample <- b/no_rep
   
@@ -116,6 +136,26 @@ sampRepRank <- function(m_out,           # output matrix
   return(m_out)
 }
 
+# function: se ----
+#' 
+#' 
+#' 
+#' 
+#' 
+se <- function(data, cr.index){
+  tp <- nrow(data[data$CR==1 & data[, cr.index]==1, ])
+  fn <- nrow(data[data$CR==1 & data[, cr.index]==0, ])
+  
+  return(tp/(tp+fn))
+}
+
+sp <- function(data, cr.index){
+  tn <- nrow(data[data$CR==0 & data[, cr.index]==0, ])
+  fp <- nrow(data[data$CR==0 & data[, cr.index]==1, ])
+  
+  return(tn/(tn+fp))
+}
+
 #######################################################################
 ####------------------- simulation design -------------------------####
 
@@ -166,6 +206,16 @@ load <- c(.65, .8)
 # range of intercepts
 int <- c(-1, 1)
 
+# careless responding indices
+index <- c("cs", "md", "lom", "loa", "so", "tv")
+
+# cut-off values
+df_cf <- data.frame(cs = c(0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90),
+                    lom = c(1, 2, 3, 4, 5, 6, 7),
+                    loa = c(0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00),      
+                    so = c(0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40),
+                    tv = c(0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95))
+
 # varying parameter ----
 
 # design
@@ -209,8 +259,8 @@ design$simSeed <- paste0("318", 1:nrow(design))
 cl <- parallel::makeCluster(10)
 doParallel::registerDoParallel(cl)
 
-unlink("TIRT/*", recursive=TRUE)
-unlink("replications/*", recursive=TRUE)
+unlink("7_simulation_study/TIRT/*", recursive=TRUE)
+unlink("7_simulation_study/replications/*", recursive=TRUE)
 
 res <- foreach(j = 1:nrow(design), 
                .inorder = FALSE,
@@ -220,6 +270,9 @@ res <- foreach(j = 1:nrow(design),
                  # select condition
                  con <- NULL
                  con <- design[j, ]
+                 
+                 # path
+                 folder_rj <- paste0("7_simulation_study/TIRT/r-", j)
                  
                  # reset matrices 
                  m_Care_resp <- NULL
@@ -241,7 +294,7 @@ res <- foreach(j = 1:nrow(design),
                  traits <- mvtnorm::rmvnorm(n_care, v_mu, m_phi, method = "chol")
                  
                  # if no error occurs, create a folder for Mplus inp, out & data
-                 dir.create(sprintf("TIRT/r-%i", j))
+                 dir.create(folder_rj)
                  
                  # simulate item parameter ----
                  bft_items <- sim.items(m_dload, b, m, load, int)
@@ -264,7 +317,11 @@ res <- foreach(j = 1:nrow(design),
                    m_CR_ro <- matrix(NA, nrow = n_randomOrder, ncol = b*m)
                    
                    # sample rank orders
-                   m_CR_ro <- sampRepRank(m_CR_ro, no_rep = 1)
+                   m_CR_ro <- sampRepRank(m_CR_ro, 
+                                          no_rep = 1, 
+                                          ro = ro, 
+                                          ro_prob = ro_prob, 
+                                          b = b)
                  }
                  
                  if(con[, "modRepOrder"] != 0){
@@ -276,7 +333,11 @@ res <- foreach(j = 1:nrow(design),
                    m_CR_mro <- matrix(NA, nrow = n_modRepOrder, ncol = b*m)
                    
                    # sample rank orders
-                   m_CR_mro <- sampRepRank(m_CR_mro, no_rep = 5)
+                   m_CR_mro <- sampRepRank(m_CR_mro, 
+                                           no_rep = 5,
+                                           ro = ro, 
+                                           ro_prob = ro_prob, 
+                                           b = b)
                  }
                  
                  if(con[, "stroRepOrder"] != 0){
@@ -288,7 +349,11 @@ res <- foreach(j = 1:nrow(design),
                    m_CR_sro <- matrix(NA, nrow = n_stroRepOrder, ncol = b*m)
                    
                    # sample rank orders
-                   m_CR_sro <- sampRepRank(m_CR_sro, no_rep = 20)
+                   m_CR_sro <- sampRepRank(m_CR_sro, 
+                                           no_rep = 20,
+                                           ro = ro, 
+                                           ro_prob = ro_prob, 
+                                           b = b)
                  }
                  
                  # combine all response pattern in this condition to one matrix -------------
@@ -316,7 +381,7 @@ res <- foreach(j = 1:nrow(design),
                  bft <- cbind(ID, bft)
                  
                  # save binary outcomes
-                 multiplex::write.dat(bft, sprintf("TIRT/r-%i", j))
+                 multiplex::write.dat(bft, folder_rj)
                  
                  # rename traits an variables in design load matrix
                  colnames(m_dload) <- c("TNeu", "TExt", "TOpe", "TAgr", "TCon")
@@ -333,23 +398,23 @@ res <- foreach(j = 1:nrow(design),
                                              missings.as = "-99")
                  # save as input-file
                  cat(paste(tirt_bft, collapse="\n\n"), 
-                     file=paste0(sprintf("TIRT/r-%i/tirt-bft.inp", j)))
+                     file=paste0(folder_rj, "/tirt-bft.inp"))
                  
                  # run TIRT
-                 MplusAutomation::runModels(target = sprintf("TIRT/r-%i", j))
+                 MplusAutomation::runModels(target = folder_rj)
                  
                  # read TIRT results an check for warnings
-                 tirt <- MplusAutomation::readModels(target = sprintf("TIRT/r-%i", j))
+                 tirt <- MplusAutomation::readModels(target = folder_rj)
                  
                  # import parameters from mplus output
-                 bt <- MplusAutomation::readModels(sprintf("TIRT/r-%i", j), 
+                 bt <- MplusAutomation::readModels(folder_rj, 
                                                    what=c("parameters", "sampstat"))
                  bt.pars <- bt$parameters$unstandardized
                  
                  # factor scores
                   m_theta.bt <- tryCatch(
                    expr = {
-                     read.table(sprintf("TIRT/r-%i/fs.dat", j), header = FALSE, 
+                     read.table(paste0(folder_rj, "/fs.dat"), header = FALSE, 
                                 na.strings = "*")[,c(71,61,63,65,67,69)]
                    },
                    error = function(e){
@@ -393,57 +458,22 @@ res <- foreach(j = 1:nrow(design),
                     dcri$tv <- tripletVariance(dat.b)
                     
                     # apply cut-off values
-                    dcri$lom.cr <- ifelse(dcri$lom > 7, 1, 0)
-                    dcri$loa.cr <- ifelse(dcri$loa > 2, 1, 0)
-                    dcri$so.cr <- ifelse(dcri$so > .4, 1, 0)
-                    dcri$tv.cr <- ifelse(dcri$tv < .7, 1, 0)
+                    for(i in 1:nrow(df_cf)) {
+                      dcri[,paste0("lom.cr", i)] <- ifelse(dcri$lom > df_cf[i, "lom"], 1, 0)
+                      dcri[,paste0("loa.cr", i)] <- ifelse(dcri$loa > df_cf[i, "loa"], 1, 0)
+                      dcri[,paste0("so.cr", i)] <- ifelse(dcri$so > df_cf[i, "so"], 1, 0)
+                      dcri[,paste0("tv.cr", i)] <- ifelse(dcri$tv < df_cf[i, "tv"], 1, 0)
+                    }
+                    
                     
                     # compute performance measures according to Lalkhen & McCluskey (2008) ----
                     # se - sensitivity
                     # sp - specificity
-                    # ppv - positive predictive value
-                    # npv - negative predictive value
-                    
-                    lom.tp <- nrow(dcri[dcri$CR==1 & dcri$lom.cr==1, ])
-                    lom.tn <- nrow(dcri[dcri$CR==0 & dcri$lom.cr==0, ])
-                    lom.fp <- nrow(dcri[dcri$CR==0 & dcri$lom.cr==1, ])
-                    lom.fn <- nrow(dcri[dcri$CR==1 & dcri$lom.cr==0, ])
-                    lom.se <- lom.tp/(lom.tp+lom.fn)
-                    lom.sp <- lom.tn/(lom.tn+lom.fp)
-                    lom.ppv <- lom.tp/(lom.tp+lom.fp)
-                    lom.npv <- lom.tn/(lom.tn+lom.fn)
-                    
-                    loa.tp <- nrow(dcri[dcri$CR==1 & dcri$loa.cr==1, ])
-                    loa.tn <- nrow(dcri[dcri$CR==0 & dcri$loa.cr==0, ])
-                    loa.fp <- nrow(dcri[dcri$CR==0 & dcri$loa.cr==1, ])
-                    loa.fn <- nrow(dcri[dcri$CR==1 & dcri$loa.cr==0, ])
-                    loa.se <- loa.tp/(loa.tp+loa.fn)
-                    loa.sp <- loa.tn/(loa.tn+loa.fp)
-                    loa.ppv <- loa.tp/(loa.tp+loa.fp)
-                    loa.npv <- loa.tn/(loa.tn+loa.fn)
-                    
-                    so.tp <- nrow(dcri[dcri$CR==1 & dcri$so.cr==1, ])
-                    so.tn <- nrow(dcri[dcri$CR==0 & dcri$so.cr==0, ])
-                    so.fp <- nrow(dcri[dcri$CR==0 & dcri$so.cr==1, ])
-                    so.fn <- nrow(dcri[dcri$CR==1 & dcri$so.cr==0, ])
-                    so.se <- so.tp/(so.tp+so.fn)
-                    so.sp <- so.tn/(so.tn+so.fp)
-                    so.ppv <- so.tp/(so.tp+so.fp)
-                    so.npv <- so.tn/(so.tn+so.fn)
-                    
-                    tv.tp <- nrow(dcri[dcri$CR==1 & dcri$tv.cr==1, ])
-                    tv.tn <- nrow(dcri[dcri$CR==0 & dcri$tv.cr==0, ])
-                    tv.fp <- nrow(dcri[dcri$CR==0 & dcri$tv.cr==1, ])
-                    tv.fn <- nrow(dcri[dcri$CR==1 & dcri$tv.cr==0, ])
-                    tv.se <- tv.tp/(tv.tp+tv.fn)
-                    tv.sp <- tv.tn/(tv.tn+tv.fp)
-                    tv.ppv <- tv.tp/(tv.tp+tv.fp)
-                    tv.npv <- tv.tn/(tv.tn+tv.fn)
                     
                     rep_result <- data.frame(seed = design[j, "simSeed"],
                                              rep = design[j, "replication"],
-                                             cs_mean = NA,
-                                             md_mean = NA,
+                                             cs_mean = mean(dcri$cs),
+                                             md_mean = mean(dcri$md),
                                              lom_mean = mean(dcri$lom),
                                              loa_mean = mean(dcri$loa),
                                              so_mean = mean(dcri$so),
@@ -454,36 +484,95 @@ res <- foreach(j = 1:nrow(design),
                                              loa_sd = sd(dcri$loa),
                                              so_sd = sd(dcri$so),
                                              tv_sd = sd(dcri$tv),
-                                             cs_se = NA,
-                                             cs_sp = NA,
-                                             cs_ppv = NA,
-                                             cs_npv = NA,
+                                             
+                                             cs_se1 = NA,
+                                             cs_se2 = NA,
+                                             cs_se3 = NA,
+                                             cs_se4 = NA,
+                                             cs_se5 = NA,
+                                             cs_se6 = NA,
+                                             cs_se7 = NA,
+                                             
+                                             cs_sp1 = NA,
+                                             cs_sp2 = NA,
+                                             cs_sp3 = NA,
+                                             cs_sp4 = NA,
+                                             cs_sp5 = NA,
+                                             cs_sp6 = NA,
+                                             cs_sp7 = NA,
+                                             
                                              md_se = NA,
                                              md_sp = NA,
-                                             md_ppv = NA,
-                                             md_npv = NA,
-                                             lom_se = lom.se,
-                                             lom_sp = lom.sp,
-                                             lom_ppv = lom.ppv,
-                                             lom_npv = lom.npv,
-                                             loa_se = loa.se,
-                                             loa_sp = loa.sp,
-                                             loa_ppv = loa.ppv,
-                                             loa_npv = loa.npv,
-                                             so_se = so.se,
-                                             so_sp = so.sp,
-                                             so_ppv = so.ppv,
-                                             so_npv = so.npv,
-                                             tv_se = tv.se,
-                                             tv_sp = tv.sp,
-                                             tv_ppv = tv.ppv,
-                                             tv_npv = tv.npv,
+                                             
+                                             lom_se1 = se(dcri, "lom.cr1"),
+                                             lom_se2 = se(dcri, "lom.cr2"),
+                                             lom_se3 = se(dcri, "lom.cr3"),
+                                             lom_se4 = se(dcri, "lom.cr4"),
+                                             lom_se5 = se(dcri, "lom.cr5"),
+                                             lom_se6 = se(dcri, "lom.cr6"),
+                                             lom_se7 = se(dcri, "lom.cr7"),
+                                             
+                                             lom_sp1 = sp(dcri, "lom.cr1"),
+                                             lom_sp2 = sp(dcri, "lom.cr2"),
+                                             lom_sp3 = sp(dcri, "lom.cr3"),
+                                             lom_sp4 = sp(dcri, "lom.cr4"),
+                                             lom_sp5 = sp(dcri, "lom.cr5"),
+                                             lom_sp6 = sp(dcri, "lom.cr6"),
+                                             lom_sp7 = sp(dcri, "lom.cr7"),
+                                             
+                                             loa_se1 = se(dcri, "loa.cr1"),
+                                             loa_se2 = se(dcri, "loa.cr2"),
+                                             loa_se3 = se(dcri, "loa.cr3"),
+                                             loa_se4 = se(dcri, "loa.cr4"),
+                                             loa_se5 = se(dcri, "loa.cr5"),
+                                             loa_se6 = se(dcri, "loa.cr6"),
+                                             loa_se7 = se(dcri, "loa.cr7"),
+                                             
+                                             loa_sp1 = sp(dcri, "loa.cr1"),
+                                             loa_sp2 = sp(dcri, "loa.cr2"),
+                                             loa_sp3 = sp(dcri, "loa.cr3"),
+                                             loa_sp4 = sp(dcri, "loa.cr4"),
+                                             loa_sp5 = sp(dcri, "loa.cr5"),
+                                             loa_sp6 = sp(dcri, "loa.cr6"),
+                                             loa_sp7 = sp(dcri, "loa.cr7"),
+                                             
+                                             so_se1 = se(dcri, "so.cr1"),
+                                             so_se2 = se(dcri, "so.cr2"),
+                                             so_se3 = se(dcri, "so.cr3"),
+                                             so_se4 = se(dcri, "so.cr4"),
+                                             so_se5 = se(dcri, "so.cr5"),
+                                             so_se6 = se(dcri, "so.cr6"),
+                                             so_se7 = se(dcri, "so.cr7"),
+                                             
+                                             so_sp1 = sp(dcri, "so.cr1"),
+                                             so_sp2 = sp(dcri, "so.cr2"),
+                                             so_sp3 = sp(dcri, "so.cr3"),
+                                             so_sp4 = sp(dcri, "so.cr4"),
+                                             so_sp5 = sp(dcri, "so.cr5"),
+                                             so_sp6 = sp(dcri, "so.cr6"),
+                                             so_sp7 = sp(dcri, "so.cr7"),
+                                             
+                                             tv_se1 = se(dcri, "tv.cr1"),
+                                             tv_se2 = se(dcri, "tv.cr2"),
+                                             tv_se3 = se(dcri, "tv.cr3"),
+                                             tv_se4 = se(dcri, "tv.cr4"),
+                                             tv_se5 = se(dcri, "tv.cr5"),
+                                             tv_se6 = se(dcri, "tv.cr6"),
+                                             tv_se7 = se(dcri, "tv.cr7"),
+                                             
+                                             tv_sp1 = sp(dcri, "tv.cr1"),
+                                             tv_sp2 = sp(dcri, "tv.cr2"),
+                                             tv_sp3 = sp(dcri, "tv.cr3"),
+                                             tv_sp4 = sp(dcri, "tv.cr4"),
+                                             tv_sp5 = sp(dcri, "tv.cr5"),
+                                             tv_sp6 = sp(dcri, "tv.cr6"),
+                                             tv_sp7 = sp(dcri, "tv.cr7"),
                                              error = "no_fs")
-                    saveRDS(rep_result, file = paste0("replications/", 
+                    saveRDS(rep_result, file = paste0("7_simulation_study/replications/", 
                                                       "repRes", design[j, "simSeed"], ".RDS"))
                     
                     # delete folder with TIRT input and output data
-                    unlink(paste0("TIRT/r-",j), recursive = TRUE)
+                    unlink(folder_rj, recursive = TRUE)
                     
                     
                     return(paste0("no factor scores found ("
@@ -536,29 +625,20 @@ res <- foreach(j = 1:nrow(design),
                  dcri$tv <- tripletVariance(dat.b)
                  
                  # apply cut-off values
-                 dcri$cs.cr <- ifelse(dcri$cs < .64, 1, 0)
                  dcri$md.cr <- ifelse(abs(dcri$md) > qchisq(p = 1-0.05, df = 60), 1, 0)
-                 dcri$lom.cr <- ifelse(dcri$lom > 7, 1, 0)
-                 dcri$loa.cr <- ifelse(dcri$loa > 2, 1, 0)
-                 dcri$so.cr <- ifelse(dcri$so > .4, 1, 0)
-                 dcri$tv.cr <- ifelse(dcri$tv < .7, 1, 0)
+                 
+                 for(i in 1:nrow(df_cf)) {
+                   dcri[,paste0("cs.cr", i)] <- ifelse(dcri$cs < df_cf[i, "cs"], 1, 0)
+                   dcri[,paste0("lom.cr", i)] <- ifelse(dcri$lom > df_cf[i, "lom"], 1, 0)
+                   dcri[,paste0("loa.cr", i)] <- ifelse(dcri$loa > df_cf[i, "loa"], 1, 0)
+                   dcri[,paste0("so.cr", i)] <- ifelse(dcri$so > df_cf[i, "so"], 1, 0)
+                   dcri[,paste0("tv.cr", i)] <- ifelse(dcri$tv < df_cf[i, "tv"], 1, 0)
+                 }
+                 
                  
                  # compute performance measures according to Lalkhen & McCluskey (2008) ----
                  # se - sensitivity
                  # sp - specificity
-                 # ppv - positive predictive value
-                 # npv - negative predictive value
-                 
-                 # prefix (e.g., "cs.") is added to avoid errors in computation in case an index
-                 # could not be computed
-                 cs.tp <- nrow(dcri[dcri$CR==1 & dcri$cs.cr==1, ])
-                 cs.tn <- nrow(dcri[dcri$CR==0 & dcri$cs.cr==0, ])
-                 cs.fp <- nrow(dcri[dcri$CR==0 & dcri$cs.cr==1, ])
-                 cs.fn <- nrow(dcri[dcri$CR==1 & dcri$cs.cr==0, ])
-                 cs.se <- cs.tp/(cs.tp+cs.fn)
-                 cs.sp <- cs.tn/(cs.tn+cs.fp)
-                 cs.ppv <- cs.tp/(cs.tp+cs.fp)
-                 cs.npv <- cs.tn/(cs.tn+cs.fn)
                  
                  md.tp <- nrow(dcri[dcri$CR==1 & dcri$md.cr==1, ])
                  md.tn <- nrow(dcri[dcri$CR==0 & dcri$md.cr==0, ])
@@ -566,44 +646,6 @@ res <- foreach(j = 1:nrow(design),
                  md.fn <- nrow(dcri[dcri$CR==1 & dcri$md.cr==0, ])
                  md.se <- md.tp/(md.tp+md.fn)
                  md.sp <- md.tn/(md.tn+md.fp)
-                 md.ppv <- md.tp/(md.tp+md.fp)
-                 md.npv <- md.tn/(md.tn+md.fn)
-                 
-                 lom.tp <- nrow(dcri[dcri$CR==1 & dcri$lom.cr==1, ])
-                 lom.tn <- nrow(dcri[dcri$CR==0 & dcri$lom.cr==0, ])
-                 lom.fp <- nrow(dcri[dcri$CR==0 & dcri$lom.cr==1, ])
-                 lom.fn <- nrow(dcri[dcri$CR==1 & dcri$lom.cr==0, ])
-                 lom.se <- lom.tp/(lom.tp+lom.fn)
-                 lom.sp <- lom.tn/(lom.tn+lom.fp)
-                 lom.ppv <- lom.tp/(lom.tp+lom.fp)
-                 lom.npv <- lom.tn/(lom.tn+lom.fn)
-                 
-                 loa.tp <- nrow(dcri[dcri$CR==1 & dcri$loa.cr==1, ])
-                 loa.tn <- nrow(dcri[dcri$CR==0 & dcri$loa.cr==0, ])
-                 loa.fp <- nrow(dcri[dcri$CR==0 & dcri$loa.cr==1, ])
-                 loa.fn <- nrow(dcri[dcri$CR==1 & dcri$loa.cr==0, ])
-                 loa.se <- loa.tp/(loa.tp+loa.fn)
-                 loa.sp <- loa.tn/(loa.tn+loa.fp)
-                 loa.ppv <- loa.tp/(loa.tp+loa.fp)
-                 loa.npv <- loa.tn/(loa.tn+loa.fn)
-                 
-                 so.tp <- nrow(dcri[dcri$CR==1 & dcri$so.cr==1, ])
-                 so.tn <- nrow(dcri[dcri$CR==0 & dcri$so.cr==0, ])
-                 so.fp <- nrow(dcri[dcri$CR==0 & dcri$so.cr==1, ])
-                 so.fn <- nrow(dcri[dcri$CR==1 & dcri$so.cr==0, ])
-                 so.se <- so.tp/(so.tp+so.fn)
-                 so.sp <- so.tn/(so.tn+so.fp)
-                 so.ppv <- so.tp/(so.tp+so.fp)
-                 so.npv <- so.tn/(so.tn+so.fn)
-                 
-                 tv.tp <- nrow(dcri[dcri$CR==1 & dcri$tv.cr==1, ])
-                 tv.tn <- nrow(dcri[dcri$CR==0 & dcri$tv.cr==0, ])
-                 tv.fp <- nrow(dcri[dcri$CR==0 & dcri$tv.cr==1, ])
-                 tv.fn <- nrow(dcri[dcri$CR==1 & dcri$tv.cr==0, ])
-                 tv.se <- tv.tp/(tv.tp+tv.fn)
-                 tv.sp <- tv.tn/(tv.tn+tv.fp)
-                 tv.ppv <- tv.tp/(tv.tp+tv.fp)
-                 tv.npv <- tv.tn/(tv.tn+tv.fn)
                  
                  rep_result <- data.frame(seed = design[j, "simSeed"],
                                           rep = design[j, "replication"],
@@ -619,36 +661,96 @@ res <- foreach(j = 1:nrow(design),
                                           loa_sd = sd(dcri$loa),
                                           so_sd = sd(dcri$so),
                                           tv_sd = sd(dcri$tv),
-                                          cs_se = cs.se,
-                                          cs_sp = cs.sp,
-                                          cs_ppv = cs.ppv,
-                                          cs_npv = cs.npv,
+                                          
+                                          cs_se1 = se(dcri, "cs.cr1"),
+                                          cs_se2 = se(dcri, "cs.cr2"),
+                                          cs_se3 = se(dcri, "cs.cr3"),
+                                          cs_se4 = se(dcri, "cs.cr4"),
+                                          cs_se5 = se(dcri, "cs.cr5"),
+                                          cs_se6 = se(dcri, "cs.cr6"),
+                                          cs_se7 = se(dcri, "cs.cr7"),
+                                          
+                                          cs_sp1 = sp(dcri, "cs.cr1"),
+                                          cs_sp2 = sp(dcri, "cs.cr2"),
+                                          cs_sp3 = sp(dcri, "cs.cr3"),
+                                          cs_sp4 = sp(dcri, "cs.cr4"),
+                                          cs_sp5 = sp(dcri, "cs.cr5"),
+                                          cs_sp6 = sp(dcri, "cs.cr6"),
+                                          cs_sp7 = sp(dcri, "cs.cr7"),
+                                          
                                           md_se = md.se,
                                           md_sp = md.sp,
-                                          md_ppv = md.ppv,
-                                          md_npv = md.npv,
-                                          lom_se = lom.se,
-                                          lom_sp = lom.sp,
-                                          lom_ppv = lom.ppv,
-                                          lom_npv = lom.npv,
-                                          loa_se = loa.se,
-                                          loa_sp = loa.sp,
-                                          loa_ppv = loa.ppv,
-                                          loa_npv = loa.npv,
-                                          so_se = so.se,
-                                          so_sp = so.sp,
-                                          so_ppv = so.ppv,
-                                          so_npv = so.npv,
-                                          tv_se = tv.se,
-                                          tv_sp = tv.sp,
-                                          tv_ppv = tv.ppv,
-                                          tv_npv = tv.npv,
+                                          
+                                          lom_se1 = se(dcri, "lom.cr1"),
+                                          lom_se2 = se(dcri, "lom.cr2"),
+                                          lom_se3 = se(dcri, "lom.cr3"),
+                                          lom_se4 = se(dcri, "lom.cr4"),
+                                          lom_se5 = se(dcri, "lom.cr5"),
+                                          lom_se6 = se(dcri, "lom.cr6"),
+                                          lom_se7 = se(dcri, "lom.cr7"),
+                                          
+                                          lom_sp1 = sp(dcri, "lom.cr1"),
+                                          lom_sp2 = sp(dcri, "lom.cr2"),
+                                          lom_sp3 = sp(dcri, "lom.cr3"),
+                                          lom_sp4 = sp(dcri, "lom.cr4"),
+                                          lom_sp5 = sp(dcri, "lom.cr5"),
+                                          lom_sp6 = sp(dcri, "lom.cr6"),
+                                          lom_sp7 = sp(dcri, "lom.cr7"),
+                                          
+                                          loa_se1 = se(dcri, "loa.cr1"),
+                                          loa_se2 = se(dcri, "loa.cr2"),
+                                          loa_se3 = se(dcri, "loa.cr3"),
+                                          loa_se4 = se(dcri, "loa.cr4"),
+                                          loa_se5 = se(dcri, "loa.cr5"),
+                                          loa_se6 = se(dcri, "loa.cr6"),
+                                          loa_se7 = se(dcri, "loa.cr7"),
+                                          
+                                          loa_sp1 = sp(dcri, "loa.cr1"),
+                                          loa_sp2 = sp(dcri, "loa.cr2"),
+                                          loa_sp3 = sp(dcri, "loa.cr3"),
+                                          loa_sp4 = sp(dcri, "loa.cr4"),
+                                          loa_sp5 = sp(dcri, "loa.cr5"),
+                                          loa_sp6 = sp(dcri, "loa.cr6"),
+                                          loa_sp7 = sp(dcri, "loa.cr7"),
+                                          
+                                          so_se1 = se(dcri, "so.cr1"),
+                                          so_se2 = se(dcri, "so.cr2"),
+                                          so_se3 = se(dcri, "so.cr3"),
+                                          so_se4 = se(dcri, "so.cr4"),
+                                          so_se5 = se(dcri, "so.cr5"),
+                                          so_se6 = se(dcri, "so.cr6"),
+                                          so_se7 = se(dcri, "so.cr7"),
+                                          
+                                          so_sp1 = sp(dcri, "so.cr1"),
+                                          so_sp2 = sp(dcri, "so.cr2"),
+                                          so_sp3 = sp(dcri, "so.cr3"),
+                                          so_sp4 = sp(dcri, "so.cr4"),
+                                          so_sp5 = sp(dcri, "so.cr5"),
+                                          so_sp6 = sp(dcri, "so.cr6"),
+                                          so_sp7 = sp(dcri, "so.cr7"),
+                                          
+                                          tv_se1 = se(dcri, "tv.cr1"),
+                                          tv_se2 = se(dcri, "tv.cr2"),
+                                          tv_se3 = se(dcri, "tv.cr3"),
+                                          tv_se4 = se(dcri, "tv.cr4"),
+                                          tv_se5 = se(dcri, "tv.cr5"),
+                                          tv_se6 = se(dcri, "tv.cr6"),
+                                          tv_se7 = se(dcri, "tv.cr7"),
+                                          
+                                          tv_sp1 = sp(dcri, "tv.cr1"),
+                                          tv_sp2 = sp(dcri, "tv.cr2"),
+                                          tv_sp3 = sp(dcri, "tv.cr3"),
+                                          tv_sp4 = sp(dcri, "tv.cr4"),
+                                          tv_sp5 = sp(dcri, "tv.cr5"),
+                                          tv_sp6 = sp(dcri, "tv.cr6"),
+                                          tv_sp7 = sp(dcri, "tv.cr7"),
+                                        
                                           error = NA)
-                 saveRDS(rep_result, file = paste0("replications/", 
+                 saveRDS(rep_result, file = paste0("7_simulation_study/replications/", 
                                                    "repRes", design[j, "simSeed"], ".RDS"))
                  
                  # delete folder with TIRT input and output data
-                 unlink(paste0("TIRT/r-",j), recursive = TRUE)
+                 unlink(folder_rj, recursive = TRUE)
                  
                }
 
@@ -657,10 +759,10 @@ stopCluster(cl)
 ###
 
 # combine all replications to one data frame and save the result
-all_files <- list.files("replications", full.names = TRUE)
+all_files <- list.files("7_simulation_study/replications", full.names = TRUE)
 data <- lapply(all_files, readRDS)
 dat <- do.call(rbind, data)
 
-saveRDS(dat, "simRes2307.RDS")
+saveRDS(dat, "7_simulation_study/simRes230721.RDS")
 
 ###
