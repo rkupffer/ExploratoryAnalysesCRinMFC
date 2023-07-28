@@ -136,24 +136,24 @@ sampRepRank <- function(m_out, no_rep, ro, ro_prob, b){
   return(m_out)
 }
 
-# function: se ----
+# function: sesp() ----
 #' 
+#' @description compute sensitivity and specificity for an index with a given cut-off
 #' 
+#' @param data data set that contains a variable indicating whether careless
+#' responding was applied
+#' @param cr.index the index of interest
+#' @param measure either sensitivity or specificity
 #' 
-#' 
-#' 
-se <- function(data, cr.index){
+sesp <- function(data, cr.index, measure){
+  tn <- nrow(data[data$CR==0 & data[, cr.index]==0, ])
+  fp <- nrow(data[data$CR==0 & data[, cr.index]==1, ])
   tp <- nrow(data[data$CR==1 & data[, cr.index]==1, ])
   fn <- nrow(data[data$CR==1 & data[, cr.index]==0, ])
   
-  return(tp/(tp+fn))
-}
-
-sp <- function(data, cr.index){
-  tn <- nrow(data[data$CR==0 & data[, cr.index]==0, ])
-  fp <- nrow(data[data$CR==0 & data[, cr.index]==1, ])
+  if(measure == "sensitivity"){ return(tp/(tp+fn)) }
   
-  return(tn/(tn+fp))
+  else if(measure == "specificity"){ return(tn/(tn+fp)) }
 }
 
 #######################################################################
@@ -201,20 +201,20 @@ m_phi <- matrix(data = c(1, -.49, -.19, -.17, -.48,
 v_mu <- rep(0, 5)
 
 # range of factor loadings
-load <- c(.65, .8)
+load <- c(.65, .95)
 
 # range of intercepts
 int <- c(-1, 1)
 
 # careless responding indices
-index <- c("cs", "md", "lom", "loa", "so", "tv")
+index <- c("cs", "lom", "loa", "so", "tv", "md")
 
 # cut-off values
-df_cf <- data.frame(cs = c(0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90),
-                    lom = c(1, 2, 3, 4, 5, 6, 7),
-                    loa = c(0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00),      
-                    so = c(0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40),
-                    tv = c(0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95))
+df_cf <- data.frame(cs = seq(.6, .8, by = .05),
+                    lom = seq(2, 4, by = .5),
+                    loa = seq(.75, 1.75, by = .25),    
+                    so = seq(.2, .28, by = .02), #alternatively seq(.2, .4, by = .05)
+                    tv = seq(.65, .85, by = .05))
 
 # varying parameter ----
 
@@ -436,6 +436,12 @@ res <- foreach(j = 1:nrow(design),
                                        #was careless responding simulated?
                                        CR = c(rep(0, n_care), rep(1, nrow(m_CR_resp))))
                     
+                    # Mahalanobis Distance ----
+                    cor.bt <- psych::tetrachoric(bft[, 2:61], smooth = FALSE)$rho
+                    thresh.bt <- as.matrix(t(psych::tetrachoric(bft[, 2:61], smooth = FALSE)$tau))
+                    dcri$md <- as.matrix(bft[, 2:61]-thresh.bt)%*%solve(cor.bt)%*%t(as.matrix(bft[, 2:61]-thresh.bt))
+                    dcri$md <- rowMeans(dcri$md)
+                    
                     # LongOrderMax ----
                     blocks <- matrix(seq(1:I), m, b)
                     dat.b <- apply(blocks, 2, function(bn, d.r) 
@@ -458,6 +464,8 @@ res <- foreach(j = 1:nrow(design),
                     dcri$tv <- tripletVariance(dat.b)
                     
                     # apply cut-off values
+                    dcri$md.cr <- ifelse(abs(dcri$md) > qchisq(p = 1-0.05, df = 60), 1, 0)
+                    
                     for(i in 1:nrow(df_cf)) {
                       dcri[,paste0("lom.cr", i)] <- ifelse(dcri$lom > df_cf[i, "lom"], 1, 0)
                       dcri[,paste0("loa.cr", i)] <- ifelse(dcri$loa > df_cf[i, "loa"], 1, 0)
@@ -472,102 +480,51 @@ res <- foreach(j = 1:nrow(design),
                     
                     rep_result <- data.frame(seed = design[j, "simSeed"],
                                              rep = design[j, "replication"],
-                                             cs_mean = mean(dcri$cs),
+                                             error = "no_fs",
+                                             cs_mean = NA,
                                              md_mean = mean(dcri$md),
                                              lom_mean = mean(dcri$lom),
                                              loa_mean = mean(dcri$loa),
                                              so_mean = mean(dcri$so),
                                              tv_mean = mean(dcri$tv),
                                              cs_sd = NA,
-                                             md_sd = NA,
+                                             md_sd = sd(dcri$md),
                                              lom_sd = sd(dcri$lom),
                                              loa_sd = sd(dcri$loa),
                                              so_sd = sd(dcri$so),
                                              tv_sd = sd(dcri$tv),
+                                             cs_auc = NA,
+                                             md_auc = pROC::auc(dcri$CR, dcri$md),
+                                             lom_auc = pROC::auc(dcri$CR, dcri$lom),
+                                             loa_auc = pROC::auc(dcri$CR, dcri$loa),
+                                             so_auc = pROC::auc(dcri$CR, dcri$so),
+                                             tv_auc = pROC::auc(dcri$CR, dcri$tv),
                                              
-                                             cs_se1 = NA,
-                                             cs_se2 = NA,
-                                             cs_se3 = NA,
-                                             cs_se4 = NA,
-                                             cs_se5 = NA,
-                                             cs_se6 = NA,
-                                             cs_se7 = NA,
+                                             cs_sen1 = NA,
+                                             cs_sen2 = NA,
+                                             cs_sen3 = NA,
+                                             cs_sen4 = NA,
+                                             cs_sen5 = NA,
+                                             cs_sen6 = NA,
                                              
-                                             cs_sp1 = NA,
-                                             cs_sp2 = NA,
-                                             cs_sp3 = NA,
-                                             cs_sp4 = NA,
-                                             cs_sp5 = NA,
-                                             cs_sp6 = NA,
-                                             cs_sp7 = NA,
-                                             
-                                             md_se = NA,
-                                             md_sp = NA,
-                                             
-                                             lom_se1 = se(dcri, "lom.cr1"),
-                                             lom_se2 = se(dcri, "lom.cr2"),
-                                             lom_se3 = se(dcri, "lom.cr3"),
-                                             lom_se4 = se(dcri, "lom.cr4"),
-                                             lom_se5 = se(dcri, "lom.cr5"),
-                                             lom_se6 = se(dcri, "lom.cr6"),
-                                             lom_se7 = se(dcri, "lom.cr7"),
-                                             
-                                             lom_sp1 = sp(dcri, "lom.cr1"),
-                                             lom_sp2 = sp(dcri, "lom.cr2"),
-                                             lom_sp3 = sp(dcri, "lom.cr3"),
-                                             lom_sp4 = sp(dcri, "lom.cr4"),
-                                             lom_sp5 = sp(dcri, "lom.cr5"),
-                                             lom_sp6 = sp(dcri, "lom.cr6"),
-                                             lom_sp7 = sp(dcri, "lom.cr7"),
-                                             
-                                             loa_se1 = se(dcri, "loa.cr1"),
-                                             loa_se2 = se(dcri, "loa.cr2"),
-                                             loa_se3 = se(dcri, "loa.cr3"),
-                                             loa_se4 = se(dcri, "loa.cr4"),
-                                             loa_se5 = se(dcri, "loa.cr5"),
-                                             loa_se6 = se(dcri, "loa.cr6"),
-                                             loa_se7 = se(dcri, "loa.cr7"),
-                                             
-                                             loa_sp1 = sp(dcri, "loa.cr1"),
-                                             loa_sp2 = sp(dcri, "loa.cr2"),
-                                             loa_sp3 = sp(dcri, "loa.cr3"),
-                                             loa_sp4 = sp(dcri, "loa.cr4"),
-                                             loa_sp5 = sp(dcri, "loa.cr5"),
-                                             loa_sp6 = sp(dcri, "loa.cr6"),
-                                             loa_sp7 = sp(dcri, "loa.cr7"),
-                                             
-                                             so_se1 = se(dcri, "so.cr1"),
-                                             so_se2 = se(dcri, "so.cr2"),
-                                             so_se3 = se(dcri, "so.cr3"),
-                                             so_se4 = se(dcri, "so.cr4"),
-                                             so_se5 = se(dcri, "so.cr5"),
-                                             so_se6 = se(dcri, "so.cr6"),
-                                             so_se7 = se(dcri, "so.cr7"),
-                                             
-                                             so_sp1 = sp(dcri, "so.cr1"),
-                                             so_sp2 = sp(dcri, "so.cr2"),
-                                             so_sp3 = sp(dcri, "so.cr3"),
-                                             so_sp4 = sp(dcri, "so.cr4"),
-                                             so_sp5 = sp(dcri, "so.cr5"),
-                                             so_sp6 = sp(dcri, "so.cr6"),
-                                             so_sp7 = sp(dcri, "so.cr7"),
-                                             
-                                             tv_se1 = se(dcri, "tv.cr1"),
-                                             tv_se2 = se(dcri, "tv.cr2"),
-                                             tv_se3 = se(dcri, "tv.cr3"),
-                                             tv_se4 = se(dcri, "tv.cr4"),
-                                             tv_se5 = se(dcri, "tv.cr5"),
-                                             tv_se6 = se(dcri, "tv.cr6"),
-                                             tv_se7 = se(dcri, "tv.cr7"),
-                                             
-                                             tv_sp1 = sp(dcri, "tv.cr1"),
-                                             tv_sp2 = sp(dcri, "tv.cr2"),
-                                             tv_sp3 = sp(dcri, "tv.cr3"),
-                                             tv_sp4 = sp(dcri, "tv.cr4"),
-                                             tv_sp5 = sp(dcri, "tv.cr5"),
-                                             tv_sp6 = sp(dcri, "tv.cr6"),
-                                             tv_sp7 = sp(dcri, "tv.cr7"),
-                                             error = "no_fs")
+                                             cs_spe1 = NA,
+                                             cs_spe2 = NA,
+                                             cs_spe3 = NA,
+                                             cs_spe4 = NA,
+                                             cs_spe5 = NA,
+                                             cs_spe6 = NA)
+                    
+                    for(i in 2:5) {
+                      indi <- index[i]
+                      for(k in 1:nrow(df_cf)){
+                        rep_result[,paste0(indi, "_sen", k)] <- sesp(dcri, paste0(indi, ".cr", k), "sensitivity")
+                        rep_result[,paste0(indi, "_spe", k)] <- sesp(dcri, paste0(indi, ".cr", k), "specificity")
+                      }
+                    }
+                    
+                    rep_result$md_sen <- sesp(dcri, "md.cr", "sensitivity")
+                    rep_result$md_spe <- sesp(dcri, "md.cr", "specificity")
+                    
                     saveRDS(rep_result, file = paste0("7_simulation_study/replications/", 
                                                       "repRes", design[j, "simSeed"], ".RDS"))
                     
@@ -576,7 +533,7 @@ res <- foreach(j = 1:nrow(design),
                     
                     
                     return(paste0("no factor scores found ("
-                                  , design[j, "simSeed"]), ")")
+                                  , design[j, "simSeed"], ")"))
                   }
                   
                  
@@ -598,10 +555,10 @@ res <- foreach(j = 1:nrow(design),
                    d.bi = bft[, 2:61])
                  
                  # Mahalanobis Distance ----
-                 cor.bt <- cor2mat(bt)
-                 thresh.bt <- thresh2vec(bt)
-                 d_center.bt <- sweep(bft[, 2:61], 2L, thresh.bt)
-                 dcri$md <- mahalanobis(d_center.bt, center = FALSE, cov = cor.bt)
+                 cor.bt <- psych::tetrachoric(bft[, 2:61], smooth = FALSE)$rho
+                 thresh.bt <- as.matrix(t(psych::tetrachoric(bft[, 2:61], smooth = FALSE)$tau))
+                 dcri$md <- as.matrix(bft[, 2:61]-thresh.bt)%*%solve(cor.bt)%*%t(as.matrix(bft[, 2:61]-thresh.bt))
+                 dcri$md <- rowMeans(dcri$md)
                  
                  # LongOrderMax ----
                  blocks <- matrix(seq(1:I), m, b)
@@ -635,20 +592,12 @@ res <- foreach(j = 1:nrow(design),
                    dcri[,paste0("tv.cr", i)] <- ifelse(dcri$tv < df_cf[i, "tv"], 1, 0)
                  }
                  
-                 
-                 # compute performance measures according to Lalkhen & McCluskey (2008) ----
-                 # se - sensitivity
-                 # sp - specificity
-                 
-                 md.tp <- nrow(dcri[dcri$CR==1 & dcri$md.cr==1, ])
-                 md.tn <- nrow(dcri[dcri$CR==0 & dcri$md.cr==0, ])
-                 md.fp <- nrow(dcri[dcri$CR==0 & dcri$md.cr==1, ])
-                 md.fn <- nrow(dcri[dcri$CR==1 & dcri$md.cr==0, ])
-                 md.se <- md.tp/(md.tp+md.fn)
-                 md.sp <- md.tn/(md.tn+md.fp)
-                 
+                 # sample dependent cut off for consistency score
+                 dcri$cs.cr6 <- ifelse(dcri$cs < (mean(dcri$cs)-(2*sd(dcri$cs))), 1, 0)
+
                  rep_result <- data.frame(seed = design[j, "simSeed"],
                                           rep = design[j, "replication"],
+                                          error = NA,
                                           cs_mean = mean(dcri$cs),
                                           md_mean = mean(dcri$md),
                                           lom_mean = mean(dcri$lom),
@@ -660,92 +609,32 @@ res <- foreach(j = 1:nrow(design),
                                           lom_sd = sd(dcri$lom),
                                           loa_sd = sd(dcri$loa),
                                           so_sd = sd(dcri$so),
-                                          tv_sd = sd(dcri$tv),
+                                          tv_sd = sd(dcri$tv), 
+                                          cs_auc = pROC::auc(dcri$CR, dcri$cs),
+                                          md_auc = pROC::auc(dcri$CR, dcri$md),
+                                          lom_auc = pROC::auc(dcri$CR, dcri$lom),
+                                          loa_auc = pROC::auc(dcri$CR, dcri$loa),
+                                          so_auc = pROC::auc(dcri$CR, dcri$so),
+                                          tv_auc = pROC::auc(dcri$CR, dcri$tv))
+                 
+                 
+                 
+                 # compute performance measures according to Lalkhen & McCluskey (2008) ----
+                 # sen - sensitivity and spe - specificity
                                           
-                                          cs_se1 = se(dcri, "cs.cr1"),
-                                          cs_se2 = se(dcri, "cs.cr2"),
-                                          cs_se3 = se(dcri, "cs.cr3"),
-                                          cs_se4 = se(dcri, "cs.cr4"),
-                                          cs_se5 = se(dcri, "cs.cr5"),
-                                          cs_se6 = se(dcri, "cs.cr6"),
-                                          cs_se7 = se(dcri, "cs.cr7"),
+                 for(i in 1:5) {
+                   indi <- index[i]
+                   for(k in 1:nrow(df_cf)){
+                     rep_result[,paste0(indi, "_sen", k)] <- sesp(dcri, paste0(indi, ".cr", k), "sensitivity")
+                     rep_result[,paste0(indi, "_spe", k)] <- sesp(dcri, paste0(indi, ".cr", k), "specificity")
+                   }
+                 }
+                 rep_result$md_sen <- sesp(dcri, "md.cr", "sensitivity")
+                 rep_result$md_spe <- sesp(dcri, "md.cr", "specificity")
+                 
+                 rep_result$cs_sen6 <- sesp(dcri, "cs.cr6", "sensitivity")
+                 rep_result$cs_spe6 <- sesp(dcri, "cs.cr6", "specificity")
                                           
-                                          cs_sp1 = sp(dcri, "cs.cr1"),
-                                          cs_sp2 = sp(dcri, "cs.cr2"),
-                                          cs_sp3 = sp(dcri, "cs.cr3"),
-                                          cs_sp4 = sp(dcri, "cs.cr4"),
-                                          cs_sp5 = sp(dcri, "cs.cr5"),
-                                          cs_sp6 = sp(dcri, "cs.cr6"),
-                                          cs_sp7 = sp(dcri, "cs.cr7"),
-                                          
-                                          md_se = md.se,
-                                          md_sp = md.sp,
-                                          
-                                          lom_se1 = se(dcri, "lom.cr1"),
-                                          lom_se2 = se(dcri, "lom.cr2"),
-                                          lom_se3 = se(dcri, "lom.cr3"),
-                                          lom_se4 = se(dcri, "lom.cr4"),
-                                          lom_se5 = se(dcri, "lom.cr5"),
-                                          lom_se6 = se(dcri, "lom.cr6"),
-                                          lom_se7 = se(dcri, "lom.cr7"),
-                                          
-                                          lom_sp1 = sp(dcri, "lom.cr1"),
-                                          lom_sp2 = sp(dcri, "lom.cr2"),
-                                          lom_sp3 = sp(dcri, "lom.cr3"),
-                                          lom_sp4 = sp(dcri, "lom.cr4"),
-                                          lom_sp5 = sp(dcri, "lom.cr5"),
-                                          lom_sp6 = sp(dcri, "lom.cr6"),
-                                          lom_sp7 = sp(dcri, "lom.cr7"),
-                                          
-                                          loa_se1 = se(dcri, "loa.cr1"),
-                                          loa_se2 = se(dcri, "loa.cr2"),
-                                          loa_se3 = se(dcri, "loa.cr3"),
-                                          loa_se4 = se(dcri, "loa.cr4"),
-                                          loa_se5 = se(dcri, "loa.cr5"),
-                                          loa_se6 = se(dcri, "loa.cr6"),
-                                          loa_se7 = se(dcri, "loa.cr7"),
-                                          
-                                          loa_sp1 = sp(dcri, "loa.cr1"),
-                                          loa_sp2 = sp(dcri, "loa.cr2"),
-                                          loa_sp3 = sp(dcri, "loa.cr3"),
-                                          loa_sp4 = sp(dcri, "loa.cr4"),
-                                          loa_sp5 = sp(dcri, "loa.cr5"),
-                                          loa_sp6 = sp(dcri, "loa.cr6"),
-                                          loa_sp7 = sp(dcri, "loa.cr7"),
-                                          
-                                          so_se1 = se(dcri, "so.cr1"),
-                                          so_se2 = se(dcri, "so.cr2"),
-                                          so_se3 = se(dcri, "so.cr3"),
-                                          so_se4 = se(dcri, "so.cr4"),
-                                          so_se5 = se(dcri, "so.cr5"),
-                                          so_se6 = se(dcri, "so.cr6"),
-                                          so_se7 = se(dcri, "so.cr7"),
-                                          
-                                          so_sp1 = sp(dcri, "so.cr1"),
-                                          so_sp2 = sp(dcri, "so.cr2"),
-                                          so_sp3 = sp(dcri, "so.cr3"),
-                                          so_sp4 = sp(dcri, "so.cr4"),
-                                          so_sp5 = sp(dcri, "so.cr5"),
-                                          so_sp6 = sp(dcri, "so.cr6"),
-                                          so_sp7 = sp(dcri, "so.cr7"),
-                                          
-                                          tv_se1 = se(dcri, "tv.cr1"),
-                                          tv_se2 = se(dcri, "tv.cr2"),
-                                          tv_se3 = se(dcri, "tv.cr3"),
-                                          tv_se4 = se(dcri, "tv.cr4"),
-                                          tv_se5 = se(dcri, "tv.cr5"),
-                                          tv_se6 = se(dcri, "tv.cr6"),
-                                          tv_se7 = se(dcri, "tv.cr7"),
-                                          
-                                          tv_sp1 = sp(dcri, "tv.cr1"),
-                                          tv_sp2 = sp(dcri, "tv.cr2"),
-                                          tv_sp3 = sp(dcri, "tv.cr3"),
-                                          tv_sp4 = sp(dcri, "tv.cr4"),
-                                          tv_sp5 = sp(dcri, "tv.cr5"),
-                                          tv_sp6 = sp(dcri, "tv.cr6"),
-                                          tv_sp7 = sp(dcri, "tv.cr7"),
-                                        
-                                          error = NA)
                  saveRDS(rep_result, file = paste0("7_simulation_study/replications/", 
                                                    "repRes", design[j, "simSeed"], ".RDS"))
                  
@@ -763,6 +652,6 @@ all_files <- list.files("7_simulation_study/replications", full.names = TRUE)
 data <- lapply(all_files, readRDS)
 dat <- do.call(rbind, data)
 
-saveRDS(dat, "7_simulation_study/simRes230721.RDS")
+saveRDS(dat, "7_simulation_study/simRes230730.RDS")
 
 ###
